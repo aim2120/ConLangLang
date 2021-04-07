@@ -112,8 +112,8 @@ matchlist:
     | BYTYP LCURLY typmatchlist RCURLY { TypMatchList(List.rev $3) }
 
 valuematchlist:
-      valuematchlist expr_or_def LCURLY exprstmtblock RCURLY SEMI { ($2,(List.rev $4))::$1 }
-    | expr_or_def LCURLY exprstmtblock RCURLY SEMI { [$1,(List.rev $3)] }
+      valuematchlist expr_or_def LCURLY exprstmtblock RCURLY { ($2,(List.rev $4))::$1 }
+    | expr_or_def LCURLY exprstmtblock RCURLY { [$1,(List.rev $3)] }
 
 typmatchlist:
       typmatchlist typ_or_def LCURLY exprstmtblock RCURLY SEMI { ($2,(List.rev $4))::$1 }

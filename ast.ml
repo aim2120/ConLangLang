@@ -100,8 +100,8 @@ let string_of_typ = function
 
 let rec string_of_typ_decl = function
     PrimDecl(t) -> string_of_typ t
-  | ListDecl(l, t) -> "list <" ^ string_of_typ_decl t ^ ">"
-  | DictDecl(d, t1, t2) -> "dict <" ^ string_of_typ_decl t1 ^ "," ^ string_of_typ_decl t2 ^ ">"
+  | ListDecl(l, t) -> "list<" ^ string_of_typ_decl t ^ ">"
+  | DictDecl(d, t1, t2) -> "dict<" ^ string_of_typ_decl t1 ^ "," ^ string_of_typ_decl t2 ^ ">"
 
 let string_of_typ_or_def = function
     TypMatch(t) -> string_of_typ t
@@ -116,11 +116,11 @@ let rec string_of_expr = function
   | FloatLit(f) -> f
   | BoolLit(true) -> "true"
   | BoolLit(false) -> "false"
-  | StrLit(s) -> "'" ^ s ^ "'"
-  | ReLit(r) -> "\"" ^ r ^ "\""
+  | StrLit(s) -> "'" ^ (String.map (fun c -> if Char.equal c '\'' then '' else c) s)  ^ "'"
+  | ReLit(r) -> "\"" ^ (String.map (fun c -> if Char.equal c '"' then '' else c) r) ^ "\""
   | ListLit(l) -> "[" ^ String.concat ", " (List.map string_of_expr l) ^ "]"
   | DictLit(d) -> "{\n" ^
-      String.concat ",\n" (List.map (fun p -> string_of_expr (fst p) ^ ":" ^ string_of_expr (snd p)) d) ^ "}"
+      String.concat ",\n" (List.map (fun p -> string_of_expr (fst p) ^ ":" ^ string_of_expr (snd p)) d) ^ "\n}"
   | Null -> "null"
   | Binop(e1, o, e2) ->
       string_of_expr e1 ^ " " ^ string_of_binop o ^ " " ^ string_of_expr e2
@@ -132,25 +132,25 @@ let rec string_of_expr = function
   | TypAssign(v, l) -> "type " ^ v ^ " = {" ^
       String.concat ", " (List.map (fun p -> fst p ^ "<" ^ string_of_typ (snd p) ^ ">") l) ^ "}"
   | TypDefAssign(v, l) -> "typedef " ^ v ^ " = {\n" ^
-      String.concat ";\n" (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) l) ^ "}"
+      String.concat ";\n" (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) l) ^ "\n}"
   | FuncCall(v, l) -> v ^ "(" ^ String.concat ", " (List.map string_of_expr l) ^ ")"
   | Func(f) -> "fun:" ^ string_of_typ_or_none f.typ ^ " " ^ f.id ^ " (" ^
     String.concat ", " (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) f.formals) ^
-    ") = {\n" ^ string_of_exprstmtblock f.block ^ "}"
+    ") = {\n" ^ string_of_exprstmtblock f.block ^ "\n}"
   | Match(m) -> "match:" ^ string_of_typ_or_none m.typ ^ " (" ^ string_of_expr m.input ^ ")" ^ string_of_matchlist m.matchlist
   | IfElse(i) -> "if:" ^ string_of_typ_or_none i.typ ^ " (" ^ string_of_expr i.cond ^ ") {\n" ^
       string_of_exprstmtblock i.ifblock ^ "} else {\n" ^ string_of_exprstmtblock i.elseblock ^ "}"
-  | While(w) -> "while:" ^ string_of_typ_or_none w.typ ^ " (" ^ string_of_expr w.cond ^ ") {\n" ^ string_of_exprstmtblock w.block ^ "}"
+  | While(w) -> "while:" ^ string_of_typ_or_none w.typ ^ " (" ^ string_of_expr w.cond ^ ") {\n" ^ string_of_exprstmtblock w.block ^ "\n}"
   | LId(v) -> v
   | Expr(e) -> "(" ^ string_of_expr e ^ ")"
 and string_of_expr_or_def = function
     ExprMatch(e) -> string_of_expr e
   | DefaultExpr -> "default"
 and string_of_matchlist = function
-    ValMatchList(l) -> "byvalue  {\n" ^
-    String.concat ";\n" (List.map (fun p -> string_of_expr_or_def (fst p) ^ " {" ^ string_of_exprstmtblock (snd p) ^ "}") l) ^ "}"
-  | TypMatchList(l) -> "bytype {\n" ^
-    String.concat ";\n" (List.map (fun p -> string_of_typ_or_def (fst p) ^ " {" ^ string_of_exprstmtblock (snd p) ^ "}") l) ^ "}"
+    ValMatchList(l) -> " byvalue  {\n" ^
+    String.concat "\n" (List.map (fun p -> string_of_expr_or_def (fst p) ^ " {\n" ^ string_of_exprstmtblock (snd p) ^ "}") l) ^ "\n}"
+  | TypMatchList(l) -> " bytype {\n" ^
+    String.concat "\n" (List.map (fun p -> string_of_typ_or_def (fst p) ^ " {\n" ^ string_of_exprstmtblock (snd p) ^ "}") l) ^ "\n}"
 and string_of_exprstmt = function
     ExprStmt(e) -> string_of_expr e
 and string_of_exprstmtblock l = String.concat "" (List.map (fun e -> string_of_exprstmt e ^ ";\n") l)
