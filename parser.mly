@@ -4,10 +4,12 @@
 open Ast
 %}
 
-%token LPAREN RPAREN LBRACE RBRACE LANGLE RANGLE COLON SEMI COMMA
-%token PLUS MINUS TIMES DIVIDE ASSIGN DOT
-%token EQ LT GT AND OR NOT
-%token INT BOOL FLOAT STRING REGEX LIST DICT FUN NONE
+%token LPAREN RPAREN LCURLY RCURLY LSQUARE RSQUARE LANGLE RANGLE COLON SEMI COMMA
+%token DOT MINUS TIMES DIVIDE MOD PLUS CONCAT
+%token NOT AND OR EQ LT GT ASSIGN
+%token INT BOOL FLOAT STRING REGEX LIST DICT FUN NONE NULL
+%token TYP TYPDEF
+%token MATCH BYVAL BYTYP DEFAULT WHILE IF ELSE
 %token <int> INTLIT
 %token <bool> BOOLLIT
 %token <string> FLOATLIT STRLIT RELIT LID UID
@@ -23,27 +25,27 @@ open Ast
 %left EQ
 %left LT GT
 %left PLUS MINUS
-%left TIMES DIVIDE
+%left TIMES DIVIDE MOD
 %right NOT
 %right DOT
 
 %%
 
 program:
-    exprstmts EOF { List.rev $1 }
+    exprstmtblock EOF { List.rev $1 }
 
-exprstmts:
-      exprstmts expr { $2::$1 }
-    | expr         { [$1] }
+exprstmtblock:
+      exprstmtblock expr { ExprStmt($2)::$1 }
+    | expr         { [ExprStmt($1)] }
 
 expr:
       INTLIT { IntLit($1) }
     | FLOATLIT { FloatLit($1) }
     | BOOLLIT { BoolLit($1) }
     | STRLIT { StrLit($1) }
-    | RELIST { ReLit{$1} }
-    | LSQUARE exprlist_opt RSQUARE { LitList($1) }
-    | LCURLY exprpairlist_opt RCURLY { DictLit(1) }
+    | RELIT { ReLit($1) }
+    | LSQUARE exprlist_opt RSQUARE { ListLit($2) }
+    | LCURLY exprpairlist_opt RCURLY { DictLit($2) }
     | expr AND expr { Binop($1, And, $3) }
     | expr OR expr { Binop($1, Or, $3) }
     | expr EQ expr { Binop($1, Equal, $3) }
@@ -55,20 +57,20 @@ expr:
     | expr TIMES expr { Binop($1, Mult, $3) }
     | expr DIVIDE expr { Binop($1, Div, $3) }
     | NOT expr { Unop(Not, $2) }
-    | MINUS expr %prec NOT { Unop(Neg $2) }
+    | MINUS expr %prec NOT { Unop(Neg, $2) }
     | LPAREN typ RPAREN expr { Cast($2, $4) }
-    | LID DOT expr { ChildAcc($1, $2) }
+    | LID DOT expr { ChildAcc($1, $3) }
     | typ LID ASSIGN expr { Assign($1, $2, $4) }
     | LID ASSIGN expr { ReAssign($1, $3) }
-    | TYPE LID ASSIGN LCURLY typlist RCURLY { TypAssign($2, $5) }
-    | TYPEDEF LID ASSIGN LCURLY deccllist RCURLY { TypDefAssign($2, $5) }
+    | TYP LID ASSIGN LCURLY typlist RCURLY { TypAssign($2, $5) }
+    | TYPDEF LID ASSIGN LCURLY decllist RCURLY { TypDefAssign($2, $5) }
     | LID { LId($1) }
     | LID LPAREN exprlist_opt RPAREN { FuncCall($1, $3) }
-    | FUN COLON typ_or_none LID LPAREN formallist RPAREN ASSIGN LCURLY exprstmts RCURLY
+    | FUN COLON typ_or_none LID LPAREN formallist RPAREN ASSIGN LCURLY exprstmtblock RCURLY
       { Func({id=$4; formals=$6; typ=$3; block=(List.rev $10) }) }
     | MATCH COLON typ_or_none LPAREN expr RPAREN matchlist { Match({input=$5; typ=$3; matchlist=$7;}) }
-    | IF COLON typ_or_none LPAREN expr RPAREN LCURLY exprstmts RCURLY ELSE LCURLY exprstmts RCURLY { IfElse({cond=$5; typ=$3; ifblock=(List.rev $8); elseblock=(List.rev $12);}) }
-    | WHILE COLON typ_or_none LPAREN expr RPAREN LCURLY exprstmts RCURLY { While({cond=$5; typ=$3; block=(List.rev $5);}) }
+    | IF COLON typ_or_none LPAREN expr RPAREN LCURLY exprstmtblock RCURLY ELSE LCURLY exprstmtblock RCURLY { IfElse({cond=$5; typ=$3; ifblock=(List.rev $8); elseblock=(List.rev $12);}) }
+    | WHILE COLON typ_or_none LPAREN expr RPAREN LCURLY exprstmtblock RCURLY { While({cond=$5; typ=$3; block=(List.rev $8);}) }
     | LPAREN expr RPAREN { Expr($2) }
     | NULL { Null }
 
@@ -77,7 +79,7 @@ exprlist_opt:
     | exprlist { List.rev $1 }
 
 exprlist:
-      exprlist COMMA expr { $2::$1 }
+      exprlist COMMA expr { $3::$1 }
     | expr { [$1] }
 
 exprpairlist_opt:
@@ -101,20 +103,20 @@ formallist_opt:
     | formallist { List.rev $1 }
 
 formallist:
-      formallist COMMA expr { $3::$1 }
-    | expr { [$1] }
+      formallist COMMA typ LID { ($3, $4)::$1 }
+    | typ LID { [($1, $2)] }
 
 matchlist:
       BYVAL LCURLY valuematchlist RCURLY { ValMatchList(List.rev $3) }
     | BYTYP LCURLY typmatchlist RCURLY { TypMatchList(List.rev $3) }
 
 valuematchlist:
-      valuematchlist expr_or_def LCURLY exprstmts RCURLY SEMI { ($2,(List.rev $4))::$1 }
-    | expr_or_def LCURLY exprstmts RCURLY SEMI { [$1,(List.rev $3)] }
+      valuematchlist expr_or_def LCURLY exprstmtblock RCURLY SEMI { ($2,(List.rev $4))::$1 }
+    | expr_or_def LCURLY exprstmtblock RCURLY SEMI { [$1,(List.rev $3)] }
 
 typmatchlist:
-      typmatchlist typ_or_def LCURLY exprstmts RCURLY SEMI { ($2,(List.rev $4))::$1 }
-    | typ_or_def LCURLY exprstmts RCURLY SEMI { [$1,(List.rev $3)] }
+      typmatchlist typ_or_def LCURLY exprstmtblock RCURLY SEMI { ($2,(List.rev $4))::$1 }
+    | typ_or_def LCURLY exprstmtblock RCURLY SEMI { [$1,(List.rev $3)] }
 
 expr_or_def:
       DEFAULT { DefaultExpr }

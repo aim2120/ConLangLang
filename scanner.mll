@@ -23,7 +23,6 @@ rule token = parse
 | ';'      { SEMI }
 | ','      { COMMA }
 | '.'      { DOT }
-| '(' ['a'-'z' 'A'-'Z' '0'-'9' '_']* ')' as lxm { CAST(lxm) }
 | '-'      { MINUS }
 | '*'      { TIMES }
 | '/'      { DIVIDE }
@@ -46,8 +45,9 @@ rule token = parse
 | "dict"   { DICT }
 | "fun"    { FUN }
 | "none"   { NONE }
-| "true"   { BOOLLIT(true)  }
-| "false"  { BOOLLIT(false) }
+| "null"   { NULL }
+| "type"   { TYP }
+| "typedef" { TYPDEF }
 | "match"  { MATCH }
 | "byvalue"{ BYVAL }
 | "bytype" { BYTYP }
@@ -56,6 +56,8 @@ rule token = parse
 | "if"     { IF }
 | "else"   { ELSE }
 | digits as lxm { INTLIT(int_of_string lxm) }
+| "true"   { BOOLLIT(true)  }
+| "false"  { BOOLLIT(false) }
 | digits '.'  digit* ( ['e' 'E'] ['+' '-']? digits )? as lxm { FLOATLIT(lxm) }
 | "'" _* "'" as lxm { STRLIT(lxm) }
 | '"' _* '"' as lxm { RELIT(lxm) }
