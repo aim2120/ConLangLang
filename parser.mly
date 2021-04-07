@@ -27,6 +27,7 @@ open Ast
 %left PLUS MINUS
 %left TIMES DIVIDE MOD
 %right NOT
+%right RPAREN
 %right DOT
 
 %%
@@ -35,8 +36,8 @@ program:
     exprstmtblock EOF { List.rev $1 }
 
 exprstmtblock:
-      exprstmtblock expr { ExprStmt($2)::$1 }
-    | expr         { [ExprStmt($1)] }
+      exprstmtblock expr SEMI { ExprStmt($2)::$1 }
+    | expr SEMI               { [ExprStmt($1)] }
 
 expr:
       INTLIT { IntLit($1) }
@@ -66,7 +67,7 @@ expr:
     | TYPDEF LID ASSIGN LCURLY decllist RCURLY { TypDefAssign($2, $5) }
     | LID { LId($1) }
     | LID LPAREN exprlist_opt RPAREN { FuncCall($1, $3) }
-    | FUN COLON typ_or_none LID LPAREN formallist RPAREN ASSIGN LCURLY exprstmtblock RCURLY
+    | FUN COLON typ_or_none LID LPAREN formallist_opt RPAREN ASSIGN LCURLY exprstmtblock RCURLY
       { Func({id=$4; formals=$6; typ=$3; block=(List.rev $10) }) }
     | MATCH COLON typ_or_none LPAREN expr RPAREN matchlist { Match({input=$5; typ=$3; matchlist=$7;}) }
     | IF COLON typ_or_none LPAREN expr RPAREN LCURLY exprstmtblock RCURLY ELSE LCURLY exprstmtblock RCURLY { IfElse({cond=$5; typ=$3; ifblock=(List.rev $8); elseblock=(List.rev $12);}) }
