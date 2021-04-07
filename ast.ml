@@ -6,6 +6,11 @@ type uop = Neg | Not
 
 type typ = Int | Bool | Float | String | Regex | List | Dict | UserDef of string
 
+type typ_decl =
+    PrimDecl of typ
+  | ListDecl of typ * typ_decl
+  | DictDecl of typ * typ_decl * typ_decl
+
 type typ_or_def = TypMatch of typ | DefaultTyp
 
 type typ_or_none = TypOutput of typ | None
@@ -22,7 +27,7 @@ type expr =
   | Unop of uop * expr
   | Cast of typ * expr
   | ChildAcc of string * expr
-  | Assign of typ * string * expr
+  | Assign of typ_decl * string * expr
   | ReAssign of string * expr
   | TypAssign of string * (string * typ) list
   | TypDefAssign of string * (typ * string) list
@@ -93,6 +98,11 @@ let string_of_typ = function
   | Dict -> "dict"
   | UserDef(u) -> u
 
+let rec string_of_typ_decl = function
+    PrimDecl(t) -> string_of_typ t
+  | ListDecl(l, t) -> "list <" ^ string_of_typ_decl t ^ ">"
+  | DictDecl(d, t1, t2) -> "dict <" ^ string_of_typ_decl t1 ^ "," ^ string_of_typ_decl t2 ^ ">"
+
 let string_of_typ_or_def = function
     TypMatch(t) -> string_of_typ t
   | DefaultTyp -> "default"
@@ -117,7 +127,7 @@ let rec string_of_expr = function
   | Unop(o, e) -> string_of_uop o ^ string_of_expr e
   | ChildAcc(s, e) -> s ^ "." ^ string_of_expr e
   | Cast(t, e) -> "(" ^ string_of_typ t ^ ")" ^ string_of_expr e
-  | Assign(t, v, e) -> string_of_typ t ^ " " ^ v ^ " = " ^ string_of_expr e
+  | Assign(t, v, e) -> string_of_typ_decl t ^ " " ^ v ^ " = " ^ string_of_expr e
   | ReAssign(v, e) -> v ^ " = " ^ string_of_expr e
   | TypAssign(v, l) -> "type " ^ v ^ " = {" ^
       String.concat ", " (List.map (fun p -> fst p ^ "<" ^ string_of_typ (snd p) ^ ">") l) ^ "}"

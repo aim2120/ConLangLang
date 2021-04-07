@@ -58,7 +58,7 @@ rule token = parse
 | digits as lxm { INTLIT(int_of_string lxm) }
 | "true"   { BOOLLIT(true)  }
 | "false"  { BOOLLIT(false) }
-| digits '.'  digit* ( ['e' 'E'] ['+' '-']? digits )? as lxm { FLOATLIT(lxm) }
+| digits '.'  digit* as lxm { FLOATLIT(lxm) }
 | "'" _* "'" as lxm { STRLIT(lxm) }
 | '"' _* '"' as lxm { RELIT(lxm) }
 | lowercase ['a'-'z' 'A'-'Z' '0'-'9' '_']*     as lxm { LID(lxm) }

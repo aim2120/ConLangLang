@@ -61,7 +61,7 @@ expr:
     | MINUS expr %prec NOT { Unop(Neg, $2) }
     | LPAREN typ RPAREN expr { Cast($2, $4) }
     | LID DOT expr { ChildAcc($1, $3) }
-    | typ LID ASSIGN expr { Assign($1, $2, $4) }
+    | typ_decl LID ASSIGN expr { Assign($1, $2, $4) }
     | LID ASSIGN expr { ReAssign($1, $3) }
     | TYP LID ASSIGN LCURLY typlist RCURLY { TypAssign($2, $5) }
     | TYPDEF LID ASSIGN LCURLY decllist RCURLY { TypDefAssign($2, $5) }
@@ -128,8 +128,13 @@ typ_or_def:
     | typ { TypMatch($1) }
 
 typ_or_none:
-    NONE { None }
+      NONE { None }
     | typ { TypOutput($1) }
+
+typ_decl:
+      typ { PrimDecl($1) }
+    | typ LANGLE typ_decl RANGLE { ListDecl($1, $3) }
+    | typ LANGLE typ_decl COMMA typ_decl RANGLE { DictDecl($1, $3, $5) }
 
 typ:
       INT { Int }
