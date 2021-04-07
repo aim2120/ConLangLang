@@ -116,8 +116,8 @@ let rec string_of_expr = function
   | FloatLit(f) -> f
   | BoolLit(true) -> "true"
   | BoolLit(false) -> "false"
-  | StrLit(s) -> "'" ^ (String.map (fun c -> if Char.equal c '\'' then '' else c) s)  ^ "'"
-  | ReLit(r) -> "\"" ^ (String.map (fun c -> if Char.equal c '"' then '' else c) r) ^ "\""
+  | StrLit(s) -> "'" ^ String.sub s 1 ((String.length s) - 2)  ^ "'" (* substring removes quotes around string *)
+  | ReLit(r) -> "\"" ^ String.sub r 1 ((String.length r) - 2) ^ "\"" (* substring removes quotes around string *)
   | ListLit(l) -> "[" ^ String.concat ", " (List.map string_of_expr l) ^ "]"
   | DictLit(d) -> "{\n" ^
       String.concat ",\n" (List.map (fun p -> string_of_expr (fst p) ^ ":" ^ string_of_expr (snd p)) d) ^ "\n}"
