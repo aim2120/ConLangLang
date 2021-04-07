@@ -52,6 +52,7 @@ expr:
     | expr EQ expr { Binop($1, Equal, $3) }
     | expr LT expr { Binop($1, Less, $3) }
     | expr GT expr { Binop($1, Greater, $3) }
+    | expr CONCAT expr { Binop($1, Concat, $3) }
     | expr PLUS expr { Binop($1, Add, $3) }
     | expr MINUS expr { Binop($1, Sub, $3) }
     | expr MOD expr { Binop($1, Mod, $3) }
