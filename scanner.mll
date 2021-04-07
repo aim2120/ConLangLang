@@ -49,7 +49,8 @@ rule token = parse
 | "true"   { BOOLLIT(true)  }
 | "false"  { BOOLLIT(false) }
 | "match"  { MATCH }
-| "with"   { WITH }
+| "byvalue"{ BYVAL }
+| "bytype" { BYTYP }
 | "default"{ DEFAULT }
 | "while"  { WHILE }
 | "if"     { IF }

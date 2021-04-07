@@ -1,62 +1,8 @@
 /* Ocamlyacc parser for CLL */
 
 %{
-open Ast %}
-
-/*
-rule token = parse
-  [' ' '\t' '\r' '\n'] { token lexbuf } (* Whitespace *)
-| "{#"     { comment lexbuf }           (* Comments *)
-| "##"     { onelinecomment lexbuf }
-| '('      { LPAREN }
-| ')'      { RPAREN }
-| '{'      { LBRACE }
-| '}'      { RBRACE }
-| '<'      { LANGLE }
-| '>'      { RANGLE }
-| ':'      { COLON }
-| ';'      { SEMI }
-| ','      { COMMA }
-| '+'      { PLUS }
-| '-'      { MINUS }
-| '*'      { TIMES }
-| '/'      { DIVIDE }
-| '='      { ASSIGN }
-| '.'      { DOT }
-| "=="     { EQ }
-| "<<"     { LT }
-| ">>"     { GT }
-| "&&"     { AND }
-| "||"     { OR }
-| "!"      { NOT }
-| "int"    { INT }
-| "bool"   { BOOL }
-| "float"  { FLOAT }
-| "string" { STRING }
-| "regex"  { REGEX }
-| "list"   { LIST }
-| "dict"   { DICT }
-| "fun"    { FUN }
-| "none"   { NONE }
-| "type"   { TYPE }
-| "typedef" { TYPEDEF }
-| "true"   { BOOLLIT(true)  }
-| "false"  { BOOLLIT(false) }
-| "match"  { MATCH }
-| "with"   { WITH }
-| "default"{ DEFAULT }
-| "while"  { WHILE }
-| "if"     { IF }
-| "else"   { ELSE }
-| digits as lxm { INTLIT(int_of_string lxm) }
-| digits '.'  digit* ( ['e' 'E'] ['+' '-']? digits )? as lxm { FLOATLIT(lxm) }
-| lowercase ['a'-'z' 'A'-'Z' '0'-'9' '_']*     as lxm { LID(lxm) }
-| uppercase ['a'-'z' 'A'-'Z' '0'-'9' '_']*     as lxm { UID(lxm) }
-| eof { EOF }
-| _ as char { raise (Failure("illegal character " ^ Char.escaped char)) }
-
-
- */
+open Ast
+%}
 
 %token LPAREN RPAREN LBRACE RBRACE LANGLE RANGLE COLON SEMI COMMA
 %token PLUS MINUS TIMES DIVIDE ASSIGN DOT
@@ -79,7 +25,6 @@ rule token = parse
 %left PLUS MINUS
 %left TIMES DIVIDE
 %right NOT
-%right CAST
 %right DOT
 
 %%
@@ -111,23 +56,23 @@ expr:
     | expr DIVIDE expr { Binop($1, Div, $3) }
     | NOT expr { Unop(Not, $2) }
     | MINUS expr %prec NOT { Unop(Neg $2) }
-    | CAST expr { Cast($1, $2) } 
+    | LPAREN typ RPAREN expr { Cast($2, $4) }
     | LID DOT expr { ChildAcc($1, $2) }
     | typ LID ASSIGN expr { Assign($1, $2, $4) }
     | LID ASSIGN expr { ReAssign($1, $3) }
     | TYPE LID ASSIGN LCURLY typlist RCURLY { TypAssign($2, $5) }
     | TYPEDEF LID ASSIGN LCURLY deccllist RCURLY { TypDefAssign($2, $5) }
     | LID { LId($1) }
-    | FUN LID LPAREN formallist RPAREN COLON LPAREN typ_or_none RPAREN ASSIGN LCURLY exprstmts RCURLY
-      { Func({id = $2; formals = $4; typ = $8; body = $12}) }
     | LID LPAREN exprlist_opt RPAREN { FuncCall($1, $3) }
-    | MATCH LPAREN expr RPAREN WITH matchexpr { Match($3, $6) }
-    | IF LPAREN expr RPAREN LCURLY exprstmts RCURLY ELSE LCURLY exprstmts RCURLY { IfElse($3, $6, $9) }
-    | WHILE LPAREN expr RPAREN LCURLY exprstmts RCURLY { While($3, $6) }
+    | FUN COLON typ_or_none LID LPAREN formallist RPAREN ASSIGN LCURLY exprstmts RCURLY
+      { Func({id=$4; formals=$6; typ=$3; block=(List.rev $10) }) }
+    | MATCH COLON typ_or_none LPAREN expr RPAREN matchlist { Match({input=$5; typ=$3; matchlist=$7;}) }
+    | IF COLON typ_or_none LPAREN expr RPAREN LCURLY exprstmts RCURLY ELSE LCURLY exprstmts RCURLY { IfElse({cond=$5; typ=$3; ifblock=(List.rev $8); elseblock=(List.rev $12);}) }
+    | WHILE COLON typ_or_none LPAREN expr RPAREN LCURLY exprstmts RCURLY { While({cond=$5; typ=$3; block=(List.rev $5);}) }
     | LPAREN expr RPAREN { Expr($2) }
     | NULL { Null }
 
-exprlist_opt: 
+exprlist_opt:
     /* nothing */ { [] }
     | exprlist { List.rev $1 }
 
@@ -148,7 +93,7 @@ typlist:
     | UID LANGLE typ RANGLE { [($1,$3)] }
 
 decllist:
-      decllist SEMI typ LID SEMI { ($3,$4)::$1 }
+      decllist typ LID SEMI { ($2,$3)::$1 }
     | typ LID SEMI { [($1,$2)] }
 
 formallist_opt:
@@ -159,33 +104,29 @@ formallist:
       formallist COMMA expr { $3::$1 }
     | expr { [$1] }
 
-matchexpr:
-      valuematch { $1 }
-    | typmatch { $1 }
+matchlist:
+      BYVAL LCURLY valuematchlist RCURLY { ValMatchList(List.rev $3) }
+    | BYTYP LCURLY typmatchlist RCURLY { TypMatchList(List.rev $3) }
 
-valuematch:
-    typ LCURLY valuematchlist RCURLY { ValMatch($1, List.rev $3) }
-
-typmatch:
-      TYPE LCURLY typmatchlist RCURLY { TypMatch(List.rev $3) }
-    
 valuematchlist:
-    valuematchlist SEMI expr_or_def LCURLY exprstmts RCURLY { ($3,(List.rev $5))::$1 }
-    | expr_or_def LCURLY exprstmts RCURLY { [$1,(List.rev $3)] }
+      valuematchlist expr_or_def LCURLY exprstmts RCURLY SEMI { ($2,(List.rev $4))::$1 }
+    | expr_or_def LCURLY exprstmts RCURLY SEMI { [$1,(List.rev $3)] }
 
 typmatchlist:
-    typmatchlist SEMI typ_or_def LCURLY exprstmts RCURLY { ($3,(List.rev $5))::$1 }
-    | typ_or_def LCURLY exprstmts RCURLY { [$1,(List.rev $3)] }
-/*
-    ValMatch of typ * (expr_or_def * exprstmt) list
-  | TypMatch of typ_or_def * exprstmt list
-/* LEFT OFF HERE */
-*/
+      typmatchlist typ_or_def LCURLY exprstmts RCURLY SEMI { ($2,(List.rev $4))::$1 }
+    | typ_or_def LCURLY exprstmts RCURLY SEMI { [$1,(List.rev $3)] }
+
+expr_or_def:
+      DEFAULT { DefaultExpr }
+    | expr { ExprMatch($1) }
+
+typ_or_def:
+      DEFAULT { DefaultTyp }
+    | typ { TypMatch($1) }
 
 typ_or_none:
     NONE { None }
-    | typ { $1 } 
-
+    | typ { TypOutput($1) }
 
 typ:
       INT { Int }

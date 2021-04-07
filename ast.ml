@@ -4,9 +4,11 @@ type binop = Mult | Div | Mod | Add | Sub | Concat | And | Or | Equal | Greater 
 
 type uop = Neg | Not
 
-type typ = Int | Bool | Float | String | Regex | List | Dict | None | UserDef of string
+type typ = Int | Bool | Float | String | Regex | List | Dict | UserDef of string
 
-type typ_or_def = Typ of typ | Default
+type typ_or_def = TypMatch of typ | DefaultTyp
+
+type typ_or_none = TypOutput of typ | None
 
 type expr =
     IntLiteral of int
@@ -25,23 +27,39 @@ type expr =
   | TypAssign of string * (string * typ) list
   | TypDefAssign of string * (typ * string) list
   | LId of string
-  | Func of func
   | FuncCall of string * expr list
-  | Match of expr * matchexpr
-  | IfElse of expr * exprstmt list * exprstmt list
-  | While of expr * exprstmt list
+  | Func of func
+  | Match of mtch
+  | IfElse of ifelse
+  | While of whle
   | Expr of expr
   | Null
 and func = {
     id: string;
     formals: (typ * string) list;
-    typ: typ;
-    body: expr list;
+    typ: typ_or_none;
+    block: exprstmt list;
 }
-and expr_or_def = Expr of expr | Default
-and matchexpr =
-    ValMatch of typ * (expr_or_def * exprstmt list) list
-  | TypMatch of (typ_or_def * exprstmt list) list
+and mtch = {
+    input: expr;
+    typ: typ_or_none;
+    matchlist: matchlist;
+}
+and matchlist =
+    ValMatchList of (expr_or_def * exprstmt list) list
+  | TypMatchList of (typ_or_def * exprstmt list) list
+and expr_or_def = ExprMatch of expr | DefaultExpr
+and ifelse = {
+    cond: expr;
+    typ: typ_or_none;
+    ifblock: exprstmt list;
+    elseblock: exprstmt list;
+}
+and whle = {
+    cond: expr;
+    typ: typ_or_none;
+    block: exprstmt list;
+}
 and exprstmt = ExprStmt of expr
 
 type program = exprstmt list
@@ -72,12 +90,15 @@ let string_of_typ = function
   | String -> "string"
   | Regex -> "regex"
   | Dict -> "dict"
-  | None -> "none"
   | UserDef(u) -> u
 
 let string_of_typ_or_def = function
-    Type(t) -> string_of_typ t
-  | Default -> "default"
+    TypMatch(t) -> string_of_typ t
+  | DefaultTyp -> "default"
+
+let string_of_typ_or_none = function
+    TypOutput(t) -> string_of_typ t
+  | None -> "none"
 
 let rec string_of_expr = function
     IntLiteral(i) -> string_of_int i
@@ -101,27 +122,23 @@ let rec string_of_expr = function
       String.concat ", " (List.map (fun p -> fst p ^ "<" ^ string_of_typ (snd p) ^ ">") l) ^ "}"
   | TypDefAssign(v, l) -> "typedef " ^ v ^ " = {\n" ^
       String.concat ";\n" (List.map (fun p -> string_of_typ (fst p) ^ " " snd p) l) ^ "}"
-  | Func(f) ->
-    "fun " ^ f.id ^ " (" ^
-    String.concat ", " (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) f.formals) ^
-    "):(" ^ string_of_type f.typ ^ ") = {\n" ^
-    List.map string_of_exprstmt f.body ^ "}"
   | FuncCall(v, l) -> v ^ "(" ^ String.concat ", " (List.map string_of_expr l) ^ ")"
-  | Match(e, me) -> "match (" ^ string_of_expr ^ ") with " ^ string_of_match me
-  | IfElse(e, l1, l2) -> "if (" ^ string_of_expr e ^ ") {\n" ^
-      List.map string_of_exprstmt l1 ^ "} else {\n" ^ List.map string_of_exprstmt l2 ^ "}"
-  | While(e, l) -> "while (" ^ string_of_expr ^ ") {\n" ^ List.map string_of_exprstmt l ^ "}"
+  | Func(f) -> "fun:" ^ string_of_typ_or_none f.typ ^ " " ^ f.id ^ " (" ^
+    String.concat ", " (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) f.formals) ^
+    ") = {\n" ^ List.map string_of_exprstmt f.block ^ "}"
+  | Match(m) -> "match:" ^ string_of_typ_or_none m.typ ^ " (" ^ string_of_expr m.input ^ ")" ^ string_of_matchlist m.matchlist
+  | IfElse(i) -> "if:" ^ string_of_typ_or_none i.typ ^ " (" ^ string_of_expr i.cond ^ ") {\n" ^
+      List.map string_of_exprstmt i.ifblock ^ "} else {\n" ^ List.map string_of_exprstmt i.elseblock ^ "}"
+  | While(w) -> "while:" ^ string_of_typ_or_none w.typ ^ " (" ^ string_of_expr w.cond ^ ") {\n" ^ List.map string_of_exprstmt w.block ^ "}"
   | LId(v) -> v
-  | Call(f, el) ->
-      f ^ "(" ^ String.concat ", " (List.map string_of_expr el) ^ ")"
   | Expr(e) -> "(" ^ string_of_expr e ^ ")"
 and string_of_expr_or_def = function
-    Expr(e) -> string_of_expr e
-  | Default -> "default"
-and string_of_match = function
-    ValMatch(t, l) -> string_of_expr t ^ " = {\n" ^
+    ExprMatch(e) -> string_of_expr e
+  | DefaultExpr -> "default"
+and string_of_matchlist = function
+    ValMatchList(l) -> "byvalue  {\n" ^
     String.concat ";\n" (List.map (fun p -> string_of_expr_or_def (fst p) ^ " {" (List.map string_of_exprstmt (snd p)) ^ "}") l)  "}"
-  | TypMatch(l) -> "type = {\n" ^
+  | TypMatchList(l) -> "bytype {\n" ^
     String.concat ";\n" (List.map (fun p -> string_of_typ_or_def (fst p) ^ " {" (List.map string_of_exprstmt (snd p)) ^ "}") l)  "}"
 and string_of_exprstmt = function
     ExprStmt(e) -> string_of_expr e ^ ";\n"
