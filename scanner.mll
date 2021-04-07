@@ -59,8 +59,8 @@ rule token = parse
 | "true"   { BOOLLIT(true)  }
 | "false"  { BOOLLIT(false) }
 | digits '.'  digit* as lxm { FLOATLIT(lxm) }
-| "'" _* "'" as lxm { STRLIT(lxm) }
-| '"' _* '"' as lxm { RELIT(lxm) }
+| '\'' [^ '\'']* '\'' as lxm { STRLIT(lxm) }
+| '"' [^ '"']* '"' as lxm { RELIT(lxm) }
 | lowercase ['a'-'z' 'A'-'Z' '0'-'9' '_']*     as lxm { LID(lxm) }
 | uppercase ['a'-'z' 'A'-'Z' '0'-'9' '_']*     as lxm { UID(lxm) }
 | eof { EOF }
