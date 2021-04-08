@@ -24,6 +24,7 @@ open Ast
 %left AND
 %left EQ
 %left LT GT
+%left CONCAT
 %left PLUS MINUS
 %left TIMES DIVIDE MOD
 %right NOT
@@ -62,10 +63,10 @@ expr:
     | MINUS expr %prec NOT { Unop(Neg, $2) }
     | LPAREN typ RPAREN expr { Cast($2, $4) }
     | LID DOT expr { ChildAcc($1, $3) }
-    | typ_decl LID ASSIGN expr { Assign($1, $2, $4) }
-    | LID ASSIGN expr { ReAssign($1, $3) }
+    | typ_decl LID ASSIGN expr_or_initlist { Assign($1, $2, $4) }
+    | LID ASSIGN expr_or_initlist { ReAssign($1, $3) }
     | TYP LID ASSIGN LCURLY typlist RCURLY { TypAssign($2, $5) }
-    | TYPDEF LID ASSIGN LCURLY decllist RCURLY { TypDefAssign($2, $5) }
+    | TYPDEF UID ASSIGN LCURLY decllist RCURLY { TypDefDecl($2, $5) }
     | LID { LId($1) }
     | LID LPAREN exprlist_opt RPAREN { FuncCall($1, $3) }
     | FUN COLON typ_or_none LID LPAREN formallist_opt RPAREN ASSIGN LCURLY exprstmtblock RCURLY
@@ -99,6 +100,14 @@ typlist:
 decllist:
       decllist typ LID SEMI { ($2,$3)::$1 }
     | typ LID SEMI { [($1,$2)] }
+
+expr_or_initlist:
+      expr { AssignExpr($1) }
+    | initlist { InitList($1) }
+
+initlist:
+      initlist LID ASSIGN expr SEMI { ($2,$4)::$1 }
+    | LID ASSIGN expr SEMI { [($1, $3)] }
 
 formallist_opt:
       /* nothing */ { [] }
