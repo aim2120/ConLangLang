@@ -1,0 +1,11 @@
+type foo = { Bar<int>, Baz<float> };
+Bar bar = 0;
+typedef Z = {
+    int i;
+    bool b;
+};
+Z $z = {
+    i = 0;
+    b = true;
+};
+$z.i;

@@ -42,33 +42,33 @@ type expr =
 and funlit = {
     formals: (typ_out * string) list;
     typ: typ_or_none;
-    block: exprstmt list;
+    block: stmt list;
 }
 and mtch = {
     input: expr; typ: typ_or_none;
     matchlist: matchlist;
 }
 and matchlist =
-    ValMatchList of (expr_or_def * exprstmt list) list
-  | TypMatchList of (typ_or_def * exprstmt list) list
+    ValMatchList of (expr_or_def * stmt list) list
+  | TypMatchList of (typ_or_def * stmt list) list
 and expr_or_def = ExprMatch of expr | DefaultExpr
 and ifelse = {
     cond: expr;
     typ: typ_or_none;
-    ifblock: exprstmt list;
-    elseblock: exprstmt list;
+    ifblock: stmt list;
+    elseblock: stmt list;
 }
 and whle = {
     cond: expr;
     typ: typ_or_none;
-    block: exprstmt list;
+    block: stmt list;
 }
-and exprstmt =
+and stmt =
     ExprStmt of expr
   | TypDecl of string * (string * typ_out) list
   | TypDefDecl of string * (typ_out * string) list
 
-type program = exprstmt list
+type program = stmt list
 
 (* Pretty-printing functions *)
 
@@ -129,7 +129,7 @@ let rec string_of_expr = function
   | DictLit(t1, t2, d) -> "<" ^ string_of_typ_out t1 ^ "," ^ string_of_typ_out t2 ^ ">" ^ "{\n" ^
       String.concat ",\n" (List.map (fun p -> string_of_expr (fst p) ^ ":" ^ string_of_expr (snd p)) d) ^ "\n}"
   | FunLit(f) -> "<" ^ String.concat ", " (List.map (fun p -> string_of_typ_out (fst p) ^ " " ^ snd p) f.formals) ^ ":" ^
-    string_of_typ_or_none f.typ ^ ">{\n" ^ string_of_exprstmtblock f.block ^ "\n}"
+    string_of_typ_or_none f.typ ^ ">{\n" ^ string_of_stmtblock f.block ^ "}"
   | Null -> "null"
   | Binop(e1, o, e2) ->
       string_of_expr e1 ^ " " ^ string_of_binop o ^ " " ^ string_of_expr e2
@@ -142,8 +142,8 @@ let rec string_of_expr = function
   | FunCall(v, l) -> v ^ "(" ^ String.concat ", " (List.map string_of_expr l) ^ ")"
   | Match(m) -> "match:" ^ string_of_typ_or_none m.typ ^ " (" ^ string_of_expr m.input ^ ")" ^ string_of_matchlist m.matchlist
   | IfElse(i) -> "if:" ^ string_of_typ_or_none i.typ ^ " (" ^ string_of_expr i.cond ^ ") {\n" ^
-      string_of_exprstmtblock i.ifblock ^ "} else {\n" ^ string_of_exprstmtblock i.elseblock ^ "}"
-  | While(w) -> "while:" ^ string_of_typ_or_none w.typ ^ " (" ^ string_of_expr w.cond ^ ") {\n" ^ string_of_exprstmtblock w.block ^ "\n}"
+      string_of_stmtblock i.ifblock ^ "} else {\n" ^ string_of_stmtblock i.elseblock ^ "}"
+  | While(w) -> "while:" ^ string_of_typ_or_none w.typ ^ " (" ^ string_of_expr w.cond ^ ") {\n" ^ string_of_stmtblock w.block ^ "}"
   | LId(v) -> v
   | Expr(e) -> "(" ^ string_of_expr e ^ ")"
 and string_of_expr_or_def = function
@@ -151,18 +151,18 @@ and string_of_expr_or_def = function
   | DefaultExpr -> "default"
 and string_of_matchlist = function
     ValMatchList(l) -> " byvalue  {\n" ^
-    String.concat "\n" (List.map (fun p -> string_of_expr_or_def (fst p) ^ " {\n" ^ string_of_exprstmtblock (snd p) ^ "}") l) ^ "\n}"
+    String.concat "\n" (List.map (fun p -> string_of_expr_or_def (fst p) ^ " {\n" ^ string_of_stmtblock (snd p) ^ "}") l) ^ "\n}"
   | TypMatchList(l) -> " bytype {\n" ^
-    String.concat "\n" (List.map (fun p -> string_of_typ_or_def (fst p) ^ " {\n" ^ string_of_exprstmtblock (snd p) ^ "}") l) ^ "\n}"
-and string_of_exprstmt = function
+    String.concat "\n" (List.map (fun p -> string_of_typ_or_def (fst p) ^ " {\n" ^ string_of_stmtblock (snd p) ^ "}") l) ^ "\n}"
+and string_of_stmt = function
     ExprStmt(e) -> string_of_expr e
   | TypDecl(v, l) -> "type " ^ v ^ " = {" ^
       String.concat ", " (List.map (fun p -> fst p ^ "<" ^ string_of_typ_out (snd p) ^ ">") l) ^ "}"
   | TypDefDecl(v, l) -> "typedef " ^ v ^ " = {\n" ^
       String.concat ";\n" (List.map (fun p -> string_of_typ_out (fst p) ^ " " ^ snd p) l) ^ "\n}"
 
-and string_of_exprstmtblock l = String.concat "" (List.map (fun e -> string_of_exprstmt e ^ ";\n") l)
+and string_of_stmtblock l = String.concat "" (List.map (fun e -> string_of_stmt e ^ ";\n") l)
 
-let string_of_program exprstmtblock =
-    string_of_exprstmtblock exprstmtblock
+let string_of_program stmtblock =
+    string_of_stmtblock stmtblock
 

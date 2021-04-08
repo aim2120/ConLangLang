@@ -1,0 +1,19 @@
+<int x:int> {
+    x;
+};
+match:bool (1) byvalue {
+    1 { true; }
+    default { false; }
+};
+match:bool (3.3) bytype {
+    float { true; }
+    int { false; }
+};
+if:int (true) {
+    1;
+} else {
+    0;
+};
+while:string (true) {
+    'hello';
+};

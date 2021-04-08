@@ -34,13 +34,13 @@ open Ast
 %%
 
 program:
-    exprstmtblock EOF { List.rev $1 }
+    stmtblock EOF { List.rev $1 }
 
-exprstmtblock:
-      exprstmtblock exprstmt SEMI { $2::$1 }
-    | exprstmt SEMI               { [$1] }
+stmtblock:
+      stmtblock stmt SEMI { $2::$1 }
+    | stmt SEMI               { [$1] }
 
-exprstmt:
+stmt:
     | expr { ExprStmt($1) }
     | TYP ID ASSIGN LCURLY typlist RCURLY { TypDecl($2, $5) }
     | TYPDEF UT ASSIGN LCURLY decllist RCURLY { TypDefDecl($2, $5) }
@@ -61,7 +61,7 @@ expr:
     | RELIT { ReLit($1) }
     | LANGLE typ_out RANGLE LSQUARE exprlist_opt RSQUARE { ListLit($2, $5) }
     | LANGLE typ_out COMMA typ_out RANGLE LCURLY exprpairlist_opt RCURLY { DictLit($2, $4, $7) }
-    | LANGLE formallist_opt COLON typ_or_none RANGLE LCURLY exprstmtblock RCURLY { FunLit({formals=$2; typ=$4; block=$7;}) }
+    | LANGLE formallist_opt COLON typ_or_none RANGLE LCURLY stmtblock RCURLY { FunLit({formals=$2; typ=$4; block=$7;}) }
     | expr AND expr { Binop($1, And, $3) }
     | expr OR expr { Binop($1, Or, $3) }
     | expr EQ expr { Binop($1, Equal, $3) }
@@ -83,14 +83,14 @@ expr:
     | ID { LId($1) }
     | ID LPAREN exprlist_opt RPAREN { FunCall($1, $3) }
     | MATCH COLON typ_or_none LPAREN expr RPAREN matchlist { Match({input=$5; typ=$3; matchlist=$7;}) }
-    | IF COLON typ_or_none LPAREN expr RPAREN LCURLY exprstmtblock RCURLY ELSE LCURLY exprstmtblock RCURLY { IfElse({cond=$5; typ=$3; ifblock=(List.rev $8); elseblock=(List.rev $12);}) }
-    | WHILE COLON typ_or_none LPAREN expr RPAREN LCURLY exprstmtblock RCURLY { While({cond=$5; typ=$3; block=(List.rev $8);}) }
+    | IF COLON typ_or_none LPAREN expr RPAREN LCURLY stmtblock RCURLY ELSE LCURLY stmtblock RCURLY { IfElse({cond=$5; typ=$3; ifblock=(List.rev $8); elseblock=(List.rev $12);}) }
+    | WHILE COLON typ_or_none LPAREN expr RPAREN LCURLY stmtblock RCURLY { While({cond=$5; typ=$3; block=(List.rev $8);}) }
     | LPAREN expr RPAREN { Expr($2) }
     | NULL { Null }
 
 /*
 
-    | FUN LANGLE typ_or_none RANGLE ID LPAREN formallist_opt RPAREN ASSIGN LCURLY exprstmtblock RCURLY
+    | FUN LANGLE typ_or_none RANGLE ID LPAREN formallist_opt RPAREN ASSIGN LCURLY stmtblock RCURLY
       { Func({id=$5; formals=$7; typ=$3; block=(List.rev $11) }) }
 */
 
@@ -127,12 +127,12 @@ matchlist:
     | BYTYP LCURLY typmatchlist RCURLY { TypMatchList(List.rev $3) }
 
 valuematchlist:
-      valuematchlist expr_or_def LCURLY exprstmtblock RCURLY { ($2,(List.rev $4))::$1 }
-    | expr_or_def LCURLY exprstmtblock RCURLY { [$1,(List.rev $3)] }
+      valuematchlist expr_or_def LCURLY stmtblock RCURLY { ($2,(List.rev $4))::$1 }
+    | expr_or_def LCURLY stmtblock RCURLY { [$1,(List.rev $3)] }
 
 typmatchlist:
-      typmatchlist typ_or_def LCURLY exprstmtblock RCURLY { ($2,(List.rev $4))::$1 }
-    | typ_or_def LCURLY exprstmtblock RCURLY { [$1,(List.rev $3)] }
+      typmatchlist typ_or_def LCURLY stmtblock RCURLY { ($2,(List.rev $4))::$1 }
+    | typ_or_def LCURLY stmtblock RCURLY { [$1,(List.rev $3)] }
 
 expr_or_def:
       DEFAULT { DefaultExpr }
