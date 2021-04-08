@@ -4,7 +4,7 @@ type binop = Mult | Div | Mod | Add | Sub | Concat | And | Or | Equal | Greater 
 
 type uop = Neg | Not
 
-type typ = Int | Bool | Float | String | Regex | List | Dict | UserDef of string
+type typ = Int | Bool | Float | String | Regex | List | Dict | UserTyp of string
 
 type typ_decl =
     PrimDecl of typ
@@ -27,10 +27,9 @@ type expr =
   | Unop of uop * expr
   | Cast of typ * expr
   | ChildAcc of string * expr
-  | Assign of typ_decl * string * expr_or_initlist
-  | ReAssign of string * expr_or_initlist
-  | TypAssign of string * (string * typ) list
-  | TypDefDecl of string * (typ * string) list
+  | Assign of typ_decl * string * expr
+  | ReAssign of string * expr
+  | TypDefAssign of string * string * (string * expr) list
   | LId of string
   | FuncCall of string * expr list
   | Func of func
@@ -46,17 +45,13 @@ and func = {
     block: exprstmt list;
 }
 and mtch = {
-    input: expr;
-    typ: typ_or_none;
+    input: expr; typ: typ_or_none;
     matchlist: matchlist;
 }
 and matchlist =
     ValMatchList of (expr_or_def * exprstmt list) list
   | TypMatchList of (typ_or_def * exprstmt list) list
 and expr_or_def = ExprMatch of expr | DefaultExpr
-and expr_or_initlist =
-    AssignExpr of expr
-  | InitList of (string * expr) list
 and ifelse = {
     cond: expr;
     typ: typ_or_none;
@@ -68,7 +63,10 @@ and whle = {
     typ: typ_or_none;
     block: exprstmt list;
 }
-and exprstmt = ExprStmt of expr
+and exprstmt =
+    ExprStmt of expr
+  | TypDecl of string * (string * typ) list
+  | TypDefDecl of string * (typ * string) list
 
 type program = exprstmt list
 
@@ -99,7 +97,7 @@ let string_of_typ = function
   | Regex -> "regex"
   | List -> "list"
   | Dict -> "dict"
-  | UserDef(u) -> u
+  | UserTyp(u) -> u
 
 let rec string_of_typ_decl = function
     PrimDecl(t) -> string_of_typ t
@@ -130,12 +128,9 @@ let rec string_of_expr = function
   | Unop(o, e) -> string_of_uop o ^ string_of_expr e
   | ChildAcc(s, e) -> s ^ "." ^ string_of_expr e
   | Cast(t, e) -> "(" ^ string_of_typ t ^ ")" ^ string_of_expr e
-  | Assign(t, v, e) -> string_of_typ_decl t ^ " " ^ v ^ " = " ^ string_of_expr_or_initlist e
-  | ReAssign(v, e) -> v ^ " = " ^ string_of_expr_or_initlist e
-  | TypAssign(v, l) -> "type " ^ v ^ " = {" ^
-      String.concat ", " (List.map (fun p -> fst p ^ "<" ^ string_of_typ (snd p) ^ ">") l) ^ "}"
-  | TypDefDecl(v, l) -> "typedef " ^ v ^ " = {\n" ^
-      String.concat ";\n" (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) l) ^ "\n}"
+  | Assign(t, v, e) -> string_of_typ_decl t ^ " " ^ v ^ " = " ^ string_of_expr e
+  | ReAssign(v, e) -> v ^ " = " ^ string_of_expr e
+  | TypDefAssign(t, v, l) -> t ^ " " ^ v ^ " = " ^ String.concat "" (List.map (fun p -> fst p ^ " = " ^ string_of_expr (snd p) ^ ";") l)
   | FuncCall(v, l) -> v ^ "(" ^ String.concat ", " (List.map string_of_expr l) ^ ")"
   | Func(f) -> "fun:" ^ string_of_typ_or_none f.typ ^ " " ^ f.id ^ " (" ^
     String.concat ", " (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) f.formals) ^
@@ -149,9 +144,6 @@ let rec string_of_expr = function
 and string_of_expr_or_def = function
     ExprMatch(e) -> string_of_expr e
   | DefaultExpr -> "default"
-and string_of_expr_or_initlist = function
-    AssignExpr(e) -> string_of_expr e
-  | InitList(l) -> String.concat "" (List.map (fun p -> fst p ^ " = " ^ string_of_expr (snd p) ^ ";") l)
 and string_of_matchlist = function
     ValMatchList(l) -> " byvalue  {\n" ^
     String.concat "\n" (List.map (fun p -> string_of_expr_or_def (fst p) ^ " {\n" ^ string_of_exprstmtblock (snd p) ^ "}") l) ^ "\n}"
@@ -159,6 +151,11 @@ and string_of_matchlist = function
     String.concat "\n" (List.map (fun p -> string_of_typ_or_def (fst p) ^ " {\n" ^ string_of_exprstmtblock (snd p) ^ "}") l) ^ "\n}"
 and string_of_exprstmt = function
     ExprStmt(e) -> string_of_expr e
+  | TypDecl(v, l) -> "type " ^ v ^ " = {" ^
+      String.concat ", " (List.map (fun p -> fst p ^ "<" ^ string_of_typ (snd p) ^ ">") l) ^ "}"
+  | TypDefDecl(v, l) -> "typedef " ^ v ^ " = {\n" ^
+      String.concat ";\n" (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) l) ^ "\n}"
+
 and string_of_exprstmtblock l = String.concat "" (List.map (fun e -> string_of_exprstmt e ^ ";\n") l)
 
 let string_of_program exprstmtblock =

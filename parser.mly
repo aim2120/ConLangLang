@@ -12,7 +12,7 @@ open Ast
 %token MATCH BYVAL BYTYP DEFAULT WHILE IF ELSE
 %token <int> INTLIT
 %token <bool> BOOLLIT
-%token <string> FLOATLIT STRLIT RELIT LID UID
+%token <string> FLOATLIT STRLIT RELIT ID UT UTD
 %token EOF
 
 %start program
@@ -37,8 +37,21 @@ program:
     exprstmtblock EOF { List.rev $1 }
 
 exprstmtblock:
-      exprstmtblock expr SEMI { ExprStmt($2)::$1 }
-    | expr SEMI               { [ExprStmt($1)] }
+      exprstmtblock exprstmt SEMI { $2::$1 }
+    | exprstmt SEMI               { [$1] }
+
+exprstmt:
+    | expr { ExprStmt($1) }
+    | TYP ID ASSIGN LCURLY typlist RCURLY { TypDecl($2, $5) }
+    | TYPDEF UTD ASSIGN LCURLY decllist RCURLY { TypDefDecl($2, $5) }
+
+typlist:
+      typlist COMMA UT LANGLE typ RANGLE { ($3,$5)::$1 }
+    | UT LANGLE typ RANGLE { [($1,$3)] }
+
+decllist:
+      decllist typ ID SEMI { ($2,$3)::$1 }
+    | typ ID SEMI { [($1,$2)] }
 
 expr:
       INTLIT { IntLit($1) }
@@ -62,14 +75,13 @@ expr:
     | NOT expr { Unop(Not, $2) }
     | MINUS expr %prec NOT { Unop(Neg, $2) }
     | LPAREN typ RPAREN expr { Cast($2, $4) }
-    | LID DOT expr { ChildAcc($1, $3) }
-    | typ_decl LID ASSIGN expr_or_initlist { Assign($1, $2, $4) }
-    | LID ASSIGN expr_or_initlist { ReAssign($1, $3) }
-    | TYP LID ASSIGN LCURLY typlist RCURLY { TypAssign($2, $5) }
-    | TYPDEF UID ASSIGN LCURLY decllist RCURLY { TypDefDecl($2, $5) }
-    | LID { LId($1) }
-    | LID LPAREN exprlist_opt RPAREN { FuncCall($1, $3) }
-    | FUN COLON typ_or_none LID LPAREN formallist_opt RPAREN ASSIGN LCURLY exprstmtblock RCURLY
+    | ID DOT expr { ChildAcc($1, $3) }
+    | typ_decl ID ASSIGN expr { Assign($1, $2, $4) }
+    | ID ASSIGN expr { ReAssign($1, $3) }
+    | UTD ID ASSIGN LCURLY initlist RCURLY { TypDefAssign($1, $2, $5) }
+    | ID { LId($1) }
+    | ID LPAREN exprlist_opt RPAREN { FuncCall($1, $3) }
+    | FUN COLON typ_or_none ID LPAREN formallist_opt RPAREN ASSIGN LCURLY exprstmtblock RCURLY
       { Func({id=$4; formals=$6; typ=$3; block=(List.rev $10) }) }
     | MATCH COLON typ_or_none LPAREN expr RPAREN matchlist { Match({input=$5; typ=$3; matchlist=$7;}) }
     | IF COLON typ_or_none LPAREN expr RPAREN LCURLY exprstmtblock RCURLY ELSE LCURLY exprstmtblock RCURLY { IfElse({cond=$5; typ=$3; ifblock=(List.rev $8); elseblock=(List.rev $12);}) }
@@ -93,29 +105,17 @@ exprpairlist:
       exprpairlist COMMA expr COLON expr { ($3,$5)::$1 }
     | expr COLON expr { [($1,$3)] }
 
-typlist:
-      typlist COMMA UID LANGLE typ RANGLE { ($3,$5)::$1 }
-    | UID LANGLE typ RANGLE { [($1,$3)] }
-
-decllist:
-      decllist typ LID SEMI { ($2,$3)::$1 }
-    | typ LID SEMI { [($1,$2)] }
-
-expr_or_initlist:
-      expr { AssignExpr($1) }
-    | initlist { InitList($1) }
-
 initlist:
-      initlist LID ASSIGN expr SEMI { ($2,$4)::$1 }
-    | LID ASSIGN expr SEMI { [($1, $3)] }
+      initlist ID ASSIGN expr SEMI { ($2,$4)::$1 }
+    | ID ASSIGN expr SEMI { [($1, $3)] }
 
 formallist_opt:
       /* nothing */ { [] }
     | formallist { List.rev $1 }
 
 formallist:
-      formallist COMMA typ LID { ($3, $4)::$1 }
-    | typ LID { [($1, $2)] }
+      formallist COMMA typ ID { ($3, $4)::$1 }
+    | typ ID { [($1, $2)] }
 
 matchlist:
       BYVAL LCURLY valuematchlist RCURLY { ValMatchList(List.rev $3) }
@@ -154,5 +154,5 @@ typ:
     | REGEX { Regex }
     | LIST { List }
     | DICT { Dict }
-    | UID { UserDef($1) }
+    | UT { UserTyp($1) }
 
