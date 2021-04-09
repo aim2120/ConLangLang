@@ -12,7 +12,7 @@ open Ast
 %token MATCH BYVAL BYTYP DEFAULT WHILE IF ELSE
 %token <int> INTLIT
 %token <bool> BOOLLIT
-%token <string> FLOATLIT STRLIT RELIT ID UTID UT
+%token <string> FLOATLIT STRLIT RELIT ID UTDID UT UTD
 %token EOF
 
 %start program
@@ -76,11 +76,12 @@ expr:
     | NOT expr { Unop(Not, $2) }
     | MINUS expr %prec NOT { Unop(Neg, $2) }
     | LPAREN typ RPAREN expr { Cast($2, $4) }
-    | UTID DOT expr { ChildAcc($1, $3) }
+    | expr DOT ID { ChildAcc($1, $3) }
     | typ ID ASSIGN expr { Assign($1, $2, $4) }
     | ID ASSIGN expr { ReAssign($1, $3) }
     | UT UTID ASSIGN LCURLY initlist RCURLY { TypDefAssign($1, $2, $5) }
-    | ID { LId($1) }
+    | ID { Id($1) }
+    | UTDID { UTDId($1) }
     | ID LPAREN exprlist_opt RPAREN { FunCall($1, $3) }
     | MATCH COLON typ_or_none LPAREN expr RPAREN matchlist { Match({input=$5; typ=$3; matchlist=$7;}) }
     | IF COLON typ_or_none LPAREN expr RPAREN LCURLY stmtblock RCURLY ELSE LCURLY stmtblock RCURLY { IfElse({cond=$5; typ=$3; ifblock=(List.rev $8); elseblock=(List.rev $12);}) }
@@ -144,7 +145,7 @@ typ_or_def:
 
 typ_or_none:
       NONE { None }
-    | typ_out { TypOutput($1) }
+    | typ_out { TypOut($1) }
 
 typ_out:
       INT { IntOut }
@@ -156,6 +157,7 @@ typ_out:
     | DICT LANGLE typ_out COMMA typ_out RANGLE { DictOut($3, $5) }
     | FUN LANGLE formallist_opt COLON typ_or_none RANGLE { FunOut($3, $5) }
     | UT { UserTypOut($1) }
+    | UTD { UserTypDefOut($1) }
 
 typ:
       INT { Int }
@@ -167,4 +169,5 @@ typ:
     | DICT { Dict }
     | FUN { Fun }
     | UT { UserTyp($1) }
+    | UTD { UserTypDef($1) }
 

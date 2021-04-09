@@ -2,7 +2,7 @@
 
 open Ast
 
-type sexpr = typ_out * sx
+type sexpr = typ_or_none * sx
 and sx =
     SIntLit of int
   | SFloatLit of string
@@ -14,12 +14,12 @@ and sx =
   | SFunLit of sfunlit
   | SBinop of sexpr * binop * sexpr
   | SUnop of uop * sexpr
-  | SCast of typ * sexpr
-  | SChildAcc of string * sexpr
+  | SCast of typ_out * sexpr
+  | SChildAcc of expr * string
   | SAssign of typ * string * sexpr
   | SReAssign of string * sexpr
   | STypDefAssign of string * string * (string * sexpr) list
-  | SLId of string
+  | SId of string
   | SFunCall of string * sexpr list
   | SMatch of smtch
   | SIfElse of sifelse
@@ -75,8 +75,8 @@ let rec string_of_sexpr = function
   | SNull -> "null"
   | SBinop(e1, o, e2) -> string_of_sexpr e1 ^ " " ^ string_of_binop o ^ " " ^ string_of_sexpr e2
   | SUnop(o, e) -> string_of_uop o ^ string_of_sexpr e
-  | SChildAcc(s, e) -> s ^ "." ^ string_of_sexpr e
-  | SCast(t, e) -> "(" ^ string_of_typ t ^ ")" ^ string_of_sexpr e
+  | SChildAcc(e, s) -> string_of_expr e ^ "." ^ s
+  | SCast(t, e) -> "(" ^ string_of_typ_out t ^ ")" ^ string_of_sexpr e
   | SAssign(t, v, e) -> string_of_typ t ^ " " ^ v ^ " = " ^ string_of_sexpr e
   | SReAssign(v, e) -> v ^ " = " ^ string_of_sexpr e
   | STypDefAssign(t, v, l) -> t ^ " " ^ v ^ " = " ^ String.concat "" (List.map (fun p -> fst p ^ " = " ^ string_of_sexpr (snd p) ^ ";") l)
@@ -85,7 +85,7 @@ let rec string_of_sexpr = function
   | SIfElse(i) -> "if:" ^ string_of_typ_or_none i.typ ^ " (" ^ string_of_sexpr i.cond ^ ") {\n" ^
       string_of_sstmtblock i.ifblock ^ "} else {\n" ^ string_of_sstmtblock i.elseblock ^ "}"
   | SWhile(w) -> "while:" ^ string_of_typ_or_none w.typ ^ " (" ^ string_of_sexpr w.cond ^ ") {\n" ^ string_of_sstmtblock w.block ^ "}"
-  | SLId(v) -> v
+  | SId(v) -> v
   | SExpr(e) -> "(" ^ string_of_sexpr e ^ ")"
 and string_of_sexpr_or_def = function
     SExprMatch(e) -> string_of_sexpr e
