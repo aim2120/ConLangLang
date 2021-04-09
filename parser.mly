@@ -43,7 +43,7 @@ stmtblock:
 stmt:
     | expr { ExprStmt($1) }
     | TYP ID ASSIGN LCURLY typlist RCURLY { TypDecl($2, $5) }
-    | TYPDEF UT ASSIGN LCURLY decllist RCURLY { TypDefDecl($2, $5) }
+    | TYPDEF UTD ASSIGN LCURLY decllist RCURLY { TypDefDecl($2, $5) }
 
 typlist:
       typlist COMMA UT LANGLE typ_out RANGLE { ($3,$5)::$1 }
@@ -75,11 +75,11 @@ expr:
     | expr DIVIDE expr { Binop($1, Div, $3) }
     | NOT expr { Unop(Not, $2) }
     | MINUS expr %prec NOT { Unop(Neg, $2) }
-    | LPAREN typ RPAREN expr { Cast($2, $4) }
+    | LPAREN typ_out RPAREN expr { Cast($2, $4) }
     | expr DOT ID { ChildAcc($1, $3) }
     | typ ID ASSIGN expr { Assign($1, $2, $4) }
     | ID ASSIGN expr { ReAssign($1, $3) }
-    | UT UTID ASSIGN LCURLY initlist RCURLY { TypDefAssign($1, $2, $5) }
+    | UTD UTDID ASSIGN LCURLY initlist RCURLY { TypDefAssign($1, $2, $5) }
     | ID { Id($1) }
     | UTDID { UTDId($1) }
     | ID LPAREN exprlist_opt RPAREN { FunCall($1, $3) }

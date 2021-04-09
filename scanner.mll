@@ -62,9 +62,9 @@ rule token = parse
 | '\'' [^ '\'']* '\'' as lxm { STRLIT(lxm) }
 | '"' [^ '"']* '"' as lxm { RELIT(lxm) }
 | lowercase ['a'-'z' 'A'-'Z' '0'-'9' '_']*     as lxm { ID(lxm) }
-| '$' lowercase ['a'-'z' 'A'-'Z' '0'-'9' '_']*     as lxm { UTDID(lxm) }
+| '$' lowercase ['a'-'z' 'A'-'Z' '0'-'9' '_']* as lxm { UTDID(lxm) }
 | uppercase ['a'-'z' 'A'-'Z' '0'-'9' '_']*     as lxm { UT(lxm) }
-| '$' uppercase ['a'-'z' 'A'-'Z' '0'-'9' '_']*     as lxm { UTD(lxm) }
+| '$' uppercase ['a'-'z' 'A'-'Z' '0'-'9' '_']* as lxm { UTD(lxm) }
 | eof { EOF }
 | _ as char { raise (Failure("illegal character " ^ Char.escaped char)) }
 

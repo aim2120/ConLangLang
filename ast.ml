@@ -4,7 +4,6 @@ type binop = Mult | Div | Mod | Add | Sub | Concat | And | Or | Equal | Greater 
 
 type uop = Neg | Not
 
-type typ = Int | Bool | Float | String | Regex | List | Dict | Fun | UserTyp of string | UserTypDef of string
 
 type typ_out = IntOut | BoolOut | FloatOut | StringOut | RegexOut
   | ListOut of typ_out
@@ -15,6 +14,8 @@ type typ_out = IntOut | BoolOut | FloatOut | StringOut | RegexOut
 and typ_or_none = TypOut of typ_out | None
 
 type typ_or_def = TypMatch of typ_out | DefaultTyp
+
+type typ = Int | Bool | Float | String | Regex | List | Dict | Fun | UserTyp of string | UserTypDef of string
 
 type expr =
     IntLit of int
