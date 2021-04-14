@@ -8,6 +8,7 @@ match:bool (1) byvalue {
 match:bool (3.3) bytype {
     float { true; }
     int { false; }
+    default { false; }
 };
 if:int (true) {
     1;
