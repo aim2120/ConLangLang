@@ -33,7 +33,7 @@ and sfunlit = {
 }
 and smtch = {
     sinput: sexpr;
-    typ: typ;
+    styp: typ;
     smatchlist: smatchlist;
 }
 and smatchlist =
@@ -60,7 +60,8 @@ type sprogram = sstmt list
 
 (* Pretty-printing functions *)
 
-let rec string_of_sexpr = function
+let rec string_of_sexpr sexpr =
+  let s = match snd sexpr with
     SIntLit(i) -> string_of_int i
   | SFloatLit(f) -> f
   | SBoolLit(true) -> "true"
@@ -86,6 +87,7 @@ let rec string_of_sexpr = function
   | SWhile(w) -> "while:" ^ string_of_typ w.typ ^ " (" ^ string_of_sexpr w.cond ^ ") {\n" ^ string_of_sstmtblock w.block ^ "}"
   | SId(v) -> v
   | SExpr(e) -> "(" ^ string_of_sexpr e ^ ")"
+  in "(typs: " ^ String.concat ", " (List.map string_of_typ (fst sexpr)) ^ ")" ^ s
 and string_of_sexpr_or_def = function
     SExprMatch(e) -> string_of_sexpr e
   | SDefaultExpr -> "default"
