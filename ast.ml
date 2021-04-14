@@ -4,18 +4,15 @@ type binop = Mult | Div | Mod | Add | Sub | Concat | And | Or | Equal | Greater 
 
 type uop = Neg | Not
 
+type typ = Int | Bool | Float | String | Regex
+  | List of typ
+  | Dict of typ * typ
+  | Fun of (typ * string) list * typ
+  | UserTyp of string
+  | UserTypDef of string
+  | None
 
-type typ_out = IntOut | BoolOut | FloatOut | StringOut | RegexOut
-  | ListOut of typ_out
-  | DictOut of typ_out * typ_out
-  | FunOut of (typ_out * string) list * typ_or_none
-  | UserTypOut of string
-  | UserTypDefOut of string
-and typ_or_none = TypOut of typ_out | None
-
-type typ_or_def = TypMatch of typ_out | DefaultTyp
-
-type typ = Int | Bool | Float | String | Regex | List | Dict | Fun | UserTyp of string | UserTypDef of string
+type typ_or_def = TypMatch of typ | DefaultTyp
 
 type expr =
     IntLit of int
@@ -23,15 +20,14 @@ type expr =
   | BoolLit of bool
   | StrLit of string
   | ReLit of string
-  | ListLit of typ_out * expr list
-  | DictLit of typ_out * typ_out * (expr * expr) list
+  | ListLit of typ * expr list
+  | DictLit of typ * typ * (expr * expr) list
   | FunLit of funlit
   | Binop of expr * binop * expr
   | Unop of uop * expr
-  | Cast of typ_out * expr
+  | Cast of typ list * expr
   | ChildAcc of expr * string
-  | Assign of typ * string * expr
-  | ReAssign of string * expr
+  | Assign of string * expr
   | TypDefAssign of string * string * (string * expr) list
   | Id of string
   | UTDId of string
@@ -42,13 +38,13 @@ type expr =
   | Expr of expr
   | Null
 and funlit = {
-    formals: (typ_out * string) list;
-    typ: typ_or_none;
+    formals: (typ * string) list;
+    typ: typ;
     block: stmt list;
 }
 and mtch = {
     input: expr;
-    typ: typ_or_none;
+    typ: typ;
     matchlist: matchlist;
 }
 and matchlist =
@@ -57,19 +53,19 @@ and matchlist =
 and expr_or_def = ExprMatch of expr | DefaultExpr
 and ifelse = {
     cond: expr;
-    typ: typ_or_none;
+    typ: typ;
     ifblock: stmt list;
     elseblock: stmt list;
 }
 and whle = {
     cond: expr;
-    typ: typ_or_none;
+    typ: typ;
     block: stmt list;
 }
 and stmt =
     ExprStmt of expr
-  | TypDecl of string * (string * typ_out) list
-  | TypDefDecl of string * (typ_out * string) list
+  | TypDecl of string * (string * typ) list
+  | TypDefDecl of string * (typ * string) list
 
 type program = stmt list
 
@@ -104,23 +100,20 @@ let string_of_typ = function
   | UserTyp(u) -> u
   | UserTypDef(u) -> u
 
-let rec string_of_typ_out = function
-    IntOut -> "int"
-  | BoolOut -> "bool"
-  | FloatOut -> "float"
-  | StringOut -> "string"
-  | RegexOut -> "regex"
-  | ListOut(t) -> "list" ^ "<" ^ string_of_typ_out t ^ ">"
-  | DictOut(t1,t2) -> "dict" ^ "<" ^ string_of_typ_out t1 ^ "," ^ string_of_typ_out t2 ^ ">"
-  | FunOut(f,t) -> "fun" ^ "<" ^ String.concat ", " (List.map (fun p -> string_of_typ_out (fst p) ^ " " ^ snd p) f) ^ ":" ^ string_of_typ_or_none t ^ ">"
-  | UserTypOut(u) -> u
-  | UserTypDefOut(u) -> u
-and string_of_typ_or_none = function
-    TypOut(t) -> string_of_typ_out t
-  | None -> "none"
+let rec string_of_typ = function
+    Int -> "int"
+  | Bool -> "bool"
+  | Float -> "float"
+  | String -> "string"
+  | Regex -> "regex"
+  | List(t) -> "list" ^ "<" ^ string_of_typ t ^ ">"
+  | Dict(t1,t2) -> "dict" ^ "<" ^ string_of_typ t1 ^ "," ^ string_of_typ t2 ^ ">"
+  | Fun(f,t) -> "fun" ^ "<" ^ String.concat ", " (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) f) ^ ":" ^ string_of_typ t ^ ">"
+  | UserTyp(u) -> u
+  | UserTypDef(u) -> u
 
 let string_of_typ_or_def = function
-    TypMatch(t) -> string_of_typ_out t
+    TypMatch(t) -> string_of_typ t
   | DefaultTyp -> "default"
 
 let rec string_of_expr = function
@@ -130,25 +123,24 @@ let rec string_of_expr = function
   | BoolLit(false) -> "false"
   | StrLit(s) -> "'" ^ String.sub s 1 ((String.length s) - 2)  ^ "'" (* substring removes quotes around string *)
   | ReLit(r) -> "\"" ^ String.sub r 1 ((String.length r) - 2) ^ "\"" (* substring removes quotes around string *)
-  | ListLit(t, l) -> "<" ^ string_of_typ_out t ^ ">" ^ "[" ^ String.concat ", " (List.map string_of_expr l) ^ "]"
-  | DictLit(t1, t2, d) -> "<" ^ string_of_typ_out t1 ^ "," ^ string_of_typ_out t2 ^ ">" ^ "{\n" ^
+  | ListLit(t, l) -> "<" ^ string_of_typ t ^ ">" ^ "[" ^ String.concat ", " (List.map string_of_expr l) ^ "]"
+  | DictLit(t1, t2, d) -> "<" ^ string_of_typ t1 ^ "," ^ string_of_typ t2 ^ ">" ^ "{\n" ^
       String.concat ",\n" (List.map (fun p -> string_of_expr (fst p) ^ ":" ^ string_of_expr (snd p)) d) ^ "\n}"
-  | FunLit(f) -> "<" ^ String.concat ", " (List.map (fun p -> string_of_typ_out (fst p) ^ " " ^ snd p) f.formals) ^ ":" ^
-    string_of_typ_or_none f.typ ^ ">{\n" ^ string_of_stmtblock f.block ^ "}"
+  | FunLit(f) -> "<" ^ String.concat ", " (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) f.formals) ^ ":" ^
+    string_of_typ f.typ ^ ">{\n" ^ string_of_stmtblock f.block ^ "}"
   | Null -> "null"
   | Binop(e1, o, e2) ->
       string_of_expr e1 ^ " " ^ string_of_binop o ^ " " ^ string_of_expr e2
   | Unop(o, e) -> string_of_uop o ^ string_of_expr e
   | ChildAcc(e, s) -> string_of_expr e ^ "." ^ s
-  | Cast(t, e) -> "(" ^ string_of_typ_out t ^ ")" ^ string_of_expr e
-  | Assign(t, v, e) -> string_of_typ t ^ " " ^ v ^ " = " ^ string_of_expr e
-  | ReAssign(v, e) -> v ^ " = " ^ string_of_expr e
+  | Cast(t, e) -> "(" ^ String.concat ", " (List.map string_of_typ t) ^ ")" ^ string_of_expr e
+  | Assign(v, e) -> v ^ " = " ^ string_of_expr e
   | TypDefAssign(t, v, l) -> t ^ " " ^ v ^ " = " ^ String.concat "" (List.map (fun p -> fst p ^ " = " ^ string_of_expr (snd p) ^ ";") l)
   | FunCall(v, l) -> v ^ "(" ^ String.concat ", " (List.map string_of_expr l) ^ ")"
-  | Match(m) -> "match:" ^ string_of_typ_or_none m.typ ^ " (" ^ string_of_expr m.input ^ ")" ^ string_of_matchlist m.matchlist
-  | IfElse(i) -> "if:" ^ string_of_typ_or_none i.typ ^ " (" ^ string_of_expr i.cond ^ ") {\n" ^
+  | Match(m) -> "match:" ^ string_of_typ m.typ ^ " (" ^ string_of_expr m.input ^ ")" ^ string_of_matchlist m.matchlist
+  | IfElse(i) -> "if:" ^ string_of_typ i.typ ^ " (" ^ string_of_expr i.cond ^ ") {\n" ^
       string_of_stmtblock i.ifblock ^ "} else {\n" ^ string_of_stmtblock i.elseblock ^ "}"
-  | While(w) -> "while:" ^ string_of_typ_or_none w.typ ^ " (" ^ string_of_expr w.cond ^ ") {\n" ^ string_of_stmtblock w.block ^ "}"
+  | While(w) -> "while:" ^ string_of_typ w.typ ^ " (" ^ string_of_expr w.cond ^ ") {\n" ^ string_of_stmtblock w.block ^ "}"
   | Id(v) -> v
   | UTDId(v) -> v
   | Expr(e) -> "(" ^ string_of_expr e ^ ")"
@@ -163,9 +155,9 @@ and string_of_matchlist = function
 and string_of_stmt = function
     ExprStmt(e) -> string_of_expr e
   | TypDecl(v, l) -> "type " ^ v ^ " = {" ^
-      String.concat ", " (List.map (fun p -> fst p ^ "<" ^ string_of_typ_out (snd p) ^ ">") l) ^ "}"
+      String.concat ", " (List.map (fun p -> fst p ^ "<" ^ string_of_typ (snd p) ^ ">") l) ^ "}"
   | TypDefDecl(v, l) -> "typedef " ^ v ^ " = {\n" ^
-      String.concat ";\n" (List.map (fun p -> string_of_typ_out (fst p) ^ " " ^ snd p) l) ^ "\n}"
+      String.concat ";\n" (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) l) ^ "\n}"
 
 and string_of_stmtblock l = String.concat "" (List.map (fun e -> string_of_stmt e ^ ";\n") l)
 
