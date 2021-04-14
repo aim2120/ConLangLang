@@ -88,18 +88,6 @@ let string_of_uop = function
     Neg -> "-"
   | Not -> "!"
 
-let string_of_typ = function
-    Int -> "int"
-  | Bool -> "bool"
-  | Float -> "float"
-  | String -> "string"
-  | Regex -> "regex"
-  | List -> "list"
-  | Dict -> "dict"
-  | Fun -> "fun"
-  | UserTyp(u) -> u
-  | UserTypDef(u) -> u
-
 let rec string_of_typ = function
     Int -> "int"
   | Bool -> "bool"
@@ -111,6 +99,7 @@ let rec string_of_typ = function
   | Fun(f,t) -> "fun" ^ "<" ^ String.concat ", " (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) f) ^ ":" ^ string_of_typ t ^ ">"
   | UserTyp(u) -> u
   | UserTypDef(u) -> u
+  | None -> "none"
 
 let string_of_typ_or_def = function
     TypMatch(t) -> string_of_typ t
