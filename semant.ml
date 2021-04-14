@@ -195,13 +195,13 @@ let check_ast ast =
             ([Dict(t1,t2)], SDictLit(t1, t2, List.rev slist), vsym)
         | FunLit(f) ->
             check_valid_typ env f.typ;
-            let check_formal (t, id) =
+            let check_formal vsym (t, id) =
                 check_none "formal argument" t;
                 check_valid_typ env t;
-                let _ = add_var env.vsym (id, [t]) in () (* not named a built-in function *)
+                add_var vsym (id, [t])
             in
-            List.iter check_formal f.formals;
-            let (_,sblock) = List.fold_left check_stmt (env, []) f.block in
+            let temp_env = add_env_vsym env (List.fold_left check_formal env.vsym f.formals) in
+            let (_,sblock) = List.fold_left check_stmt (temp_env, []) f.block in
             let _ = check_last_stmt sblock f.typ in
             let f' = {
                 sformals = f.formals;
