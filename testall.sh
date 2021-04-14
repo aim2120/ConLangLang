@@ -1,7 +1,7 @@
 #!/bin/bash
 
 for t in ./test/*.cll; do
-    output="$(cat $t | ./cll.native)"
+    output="$(./cll.native -s $t)"
     echo "***********************************"
     echo "TESTING FILE: ${t}"
     echo "***********************************"

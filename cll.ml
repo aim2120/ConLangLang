@@ -1,12 +1,26 @@
 (* Top level of the CLL compiler *)
 
+type action = Ast | Sast | LLVM_IR
+
 let () =
-    let lexbuf = Lexing.from_channel stdin in
+    let action = ref LLVM_IR in
+    let set_action a () = action := a in
+    let speclist = [
+        ("-a", Arg.Unit (set_action Ast), "Print the AST");
+        ("-s", Arg.Unit (set_action Sast), "Print the SAST");
+        ("-l", Arg.Unit (set_action LLVM_IR), "Print the generated LLVM IR");
+    ] in
+    let usage_msg = "usage: ./cll.native [-a|-s|-l] [file.cll]" in
+    let channel = ref stdin in
+    Arg.parse speclist (fun filename -> channel := open_in filename) usage_msg;
+
+    let lexbuf = Lexing.from_channel !channel in
     let ast = Parser.program Scanner.token lexbuf in
-    (*
-    print_string (Ast.string_of_program ast)
-    *)
-    let sast = Semant.check_ast ast in
-    print_string (Sast.string_of_sprogram sast)
-    (*
-    *)
+    match !action with
+        Ast -> 
+            print_string (Ast.string_of_program ast)
+        | Sast ->
+            let sast = Semant.check_ast ast in
+            print_string (Sast.string_of_sprogram sast)
+        | LLVM_IR ->
+            ()
