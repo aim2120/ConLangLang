@@ -1,7 +1,11 @@
-int x = 3;
-float y = 3.4;
-string s = 'hello';
-regex r = "a*b?";
-list l = <int>[1,2,3,4,5];
-dict d = <int,int>{ 0:0, 1:1 };
-fun f = <int x:int> { x; };
+x = 3;
+y = 3.4;
+s = 'hello';
+r = "a*b?";
+l = <int>[1,2,3,4,5];
+d = <int,int>{ 0:0, 1:1 };
+f = <int x:int> { x; };
+f(x);
+f = <int x:bool> { true; };
+y = (int) y;
+f(y);

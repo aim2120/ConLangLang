@@ -1,5 +1,7 @@
-type foo = { Bar<int>, Baz<float> };
-Bar bar = 0;
+type foo = { Bar<int>, Baz<float>, Bap<int> };
+one = (Bar) 0;
+two = (Bar, Bap) 4;
+one = two;
 typedef $Z = {
     int i;
     bool b;
