@@ -80,7 +80,7 @@ let rec string_of_sexpr sexpr =
   | SChildAcc(e, s) -> string_of_sexpr e ^ "." ^ s
   | SCast(t, e) -> "(" ^ String.concat ", " (List.map string_of_typ t) ^ ")" ^ string_of_sexpr e
   | SAssign(v, e) -> v ^ " = " ^ string_of_sexpr e
-  | STypDefAssign(t, v, l) -> t ^ " " ^ v ^ " = " ^ String.concat "" (List.map (fun p -> fst p ^ " = " ^ string_of_sexpr (snd p) ^ ";") l)
+  | STypDefAssign(t, v, l) -> t ^ " " ^ v ^ " = {\n" ^ String.concat "" (List.map (fun p -> fst p ^ " = " ^ string_of_sexpr (snd p) ^ ";\n") l) ^ "}"
   | SFunCall(v, l) -> v ^ "(" ^ String.concat ", " (List.map string_of_sexpr l) ^ ")"
   | SMatch(m) -> "match:" ^ string_of_typ m.styp ^ " (" ^ string_of_sexpr m.sinput ^ ")" ^ string_of_smatchlist m.smatchlist
   | SIfElse(i) -> "if:" ^ string_of_typ i.styp ^ " (" ^ string_of_sexpr i.scond ^ ") {\n" ^

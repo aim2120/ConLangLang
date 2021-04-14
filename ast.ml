@@ -124,7 +124,7 @@ let rec string_of_expr = function
   | ChildAcc(e, s) -> string_of_expr e ^ "." ^ s
   | Cast(t, e) -> "(" ^ String.concat ", " (List.map string_of_typ t) ^ ")" ^ string_of_expr e
   | Assign(v, e) -> v ^ " = " ^ string_of_expr e
-  | TypDefAssign(t, v, l) -> t ^ " " ^ v ^ " = " ^ String.concat "" (List.map (fun p -> fst p ^ " = " ^ string_of_expr (snd p) ^ ";") l)
+  | TypDefAssign(t, v, l) -> t ^ " " ^ v ^ " = {\n" ^ String.concat "" (List.map (fun p -> fst p ^ " = " ^ string_of_expr (snd p) ^ ";\n") l) ^ "}"
   | FunCall(v, l) -> v ^ "(" ^ String.concat ", " (List.map string_of_expr l) ^ ")"
   | Match(m) -> "match:" ^ string_of_typ m.typ ^ " (" ^ string_of_expr m.input ^ ")" ^ string_of_matchlist m.matchlist
   | IfElse(i) -> "if:" ^ string_of_typ i.typ ^ " (" ^ string_of_expr i.cond ^ ") {\n" ^
