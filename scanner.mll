@@ -1,6 +1,10 @@
 (* Ocamllex scanner for CLL *)
 
-{ open Parser }
+{
+open Parser
+
+let line_num: int ref = ref 0
+}
 
 let digit = ['0' - '9']
 let digits = digit+
@@ -8,7 +12,8 @@ let lowercase = ['a' - 'z']
 let uppercase = ['A' - 'Z']
 
 rule token = parse
-  [' ' '\t' '\r' '\n'] { token lexbuf } (* Whitespace *)
+  [' ' '\t' '\r'] { token lexbuf } (* Whitespace *)
+| '\n'     { line_num := !line_num + 1; token lexbuf }
 | "{#"     { comment lexbuf }           (* Comments *)
 | "##"     { onelinecomment lexbuf }
 | '('      { LPAREN }
