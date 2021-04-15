@@ -61,7 +61,7 @@ expr:
     | RELIT { ReLit($1) }
     | LANGLE typ RANGLE LSQUARE exprlist_opt RSQUARE { ListLit($2, $5) }
     | LANGLE typ COMMA typ RANGLE LCURLY exprpairlist_opt RCURLY { DictLit($2, $4, $7) }
-    | LANGLE formallist_opt COLON typ RANGLE LCURLY stmtblock RCURLY { FunLit({formals=$2; typ=$4; block=$7;}) }
+    | LANGLE formallist_opt COLON typ RANGLE LCURLY stmtblock RCURLY { FunLit({formals=$2; typ=$4; block=(List.rev $7);}) }
     | expr AND expr { Binop($1, And, $3) }
     | expr OR expr { Binop($1, Or, $3) }
     | expr EQ expr { Binop($1, Equal, $3) }
