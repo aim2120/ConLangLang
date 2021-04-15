@@ -72,9 +72,10 @@ rule token = parse
 | _ as char { raise (Failure("illegal character " ^ Char.escaped char)) }
 
 and comment = parse
-  "#}" { token lexbuf }
+ '\n'  { line_num := !line_num + 1; comment lexbuf }
+| "#}" { token lexbuf }
 | _    { comment lexbuf }
 
 and onelinecomment = parse
-  '\n' { token lexbuf }
+  '\n' { line_num := !line_num + 1; token lexbuf }
 | _    { onelinecomment lexbuf }

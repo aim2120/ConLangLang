@@ -14,8 +14,8 @@ let () =
     let channel = ref stdin in
     let filename = ref "" in
     Arg.parse speclist (fun file -> filename := file; channel := open_in file;) usage_msg;
-    let lexbuf = Lexing.from_channel !channel in
     try 
+        let lexbuf = Lexing.from_channel !channel in
         let ast = Parser.program Scanner.token lexbuf
         in
         match !action with
@@ -34,5 +34,8 @@ let () =
                 )
             | LLVM_IR ->
                 ()
-    with Parsing.Parse_error ->
+    with
+    Parsing.Parse_error ->
         print_string ("!!!ERROR!!! line " ^ string_of_int !Scanner.line_num ^ ": parsing error")
+    | Failure(msg) ->
+        print_string ("!!!ERROR!!! line " ^ string_of_int !Scanner.line_num ^ ": " ^ msg)
