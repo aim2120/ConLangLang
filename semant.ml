@@ -177,7 +177,7 @@ let check_ast ast =
                 ((e_typlist, se)::l, vsym')
             in
             let (slist, vsym) = List.fold_left check_list ([], env.vsym) l in 
-            ([t], SListLit(t,(List.rev slist)), vsym)
+            ([List(t)], SListLit(t,(List.rev slist)), vsym)
         | DictLit(t1,t2,l) ->
             check_none "dictionary key" t1;
             check_none "dictionary value" t2;
@@ -215,15 +215,16 @@ let check_ast ast =
             let e1_at = to_assc_typ env.tsym (List.hd typlist1) in
             let e2_at = to_assc_typ env.tsym (List.hd typlist2) in
             let err = "binary operation requires operands of the same type" in
-            let t = if e1_at = e2_at then e1_at else make_err err in
-            (match o with
-            Mult | Div | Mod | Add | Sub when t = Int || t = Float -> ()
-            | Concat when t = String -> ()
-            | And | Or when t = Bool -> ()
-            | Equal | Greater | Less when t = Int || t = Float || t = String -> ()
-            | _ -> make_err "binary operation on operands of incorrect type");
-            (* binop casts to typlist of 1st operand *)
-            (typlist1, SBinop((typlist1, se1),o,(typlist2, se2)), vsym')
+            let at = if e1_at = e2_at then e1_at else make_err err in
+            let typlist = match o with
+            Mult | Div | Mod | Add | Sub when at = Int || at = Float -> typlist1
+            | Concat when at = String -> typlist1
+            | And | Or when at = Bool -> typlist1
+            | Equal | Greater | Less when at = Int || at = Float || at = String -> [Bool]
+            | _ -> make_err "binary operation on operands of incorrect type"
+            in
+            (* binop casts to typlist of 1st operand except with comparison operators *)
+            (typlist, SBinop((typlist1, se1),o,(typlist2, se2)), vsym')
         | Unop(o,e) ->
             let (typlist, se, vsym) = check_expr env e in
             let at = to_assc_typ env.tsym (List.hd typlist) in

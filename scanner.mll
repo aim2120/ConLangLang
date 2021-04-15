@@ -33,8 +33,6 @@ rule token = parse
 | "&&"     { AND }
 | "||"     { OR }
 | "=="     { EQ }
-| "<<"     { LT }
-| ">>"     { GT }
 | '='      { ASSIGN }
 | "int"    { INT }
 | "bool"   { BOOL }
