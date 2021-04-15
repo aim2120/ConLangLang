@@ -43,7 +43,6 @@ while:string (true) {
         'hello';
         if:int (true) {
             'hello';
-            x;
         } else {
             'hello';
             0;
