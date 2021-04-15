@@ -26,7 +26,7 @@ let () =
                     let sast = Semant.check_ast ast in
                     print_string (Sast.string_of_sprogram sast)
                 with Failure(msg) ->
-                    let file_out = !filename ^ ".out" in
+                    let file_out = !filename ^ ".ast" in
                     let log = open_out file_out in
                     Printf.fprintf log "%s" (Ast.string_of_program ast);
                     close_out log;

@@ -2,3 +2,5 @@ _build
 *.native
 save*
 *.out
+*.ast
+*.err
