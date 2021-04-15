@@ -1,10 +1,14 @@
 .PHONY: all
-all: cll.native
+all: clean cll.native test
 
 .PHONY: clean
 clean:
 	ocamlbuild -clean
-	rm parser.mli parser.ml parser.output
+	./bin/clean.zsh
+
+.PHONY: test
+test:
+	./bin/testall.sh
 
 cll.native:
 	ocamlbuild -use-ocamlfind cll.native
