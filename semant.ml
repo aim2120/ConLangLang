@@ -36,7 +36,8 @@ type semantic_env = {
 
 
 let check_ast ast =
-    let make_err err = raise (Failure err) in
+    let line_num: int ref = ref 0 in
+    let make_err err = raise (Failure ("line " ^ string_of_int !line_num ^ ": " ^ err)) in
     let built_in_funs_list = [ ("sprint", [(String, "x")], None); ] in
     let built_in_funs =
         let add_built_in map (id, formals, t) =
@@ -146,7 +147,7 @@ let check_ast ast =
         check_typlist typlist t "last expression of function does not return declared type"
     in
     let rec check_stmt (env, stmts) stmt =
-        match stmt with
+        let output = match stmt with
         ExprStmt(e) ->
             let (e_t, se, vsym) = check_expr env e in
             let env' = add_env_vsym env vsym in
@@ -160,6 +161,9 @@ let check_ast ast =
             let tdsym = add_typdef env.tdsym (id, l) in
             let env' = add_env_tdsym env tdsym in
             (env', STypDefDecl(id,l)::stmts)
+        in
+        line_num := !line_num + 1;
+        output
     and check_expr env expr = 
         match expr with
         IntLit(i) -> ([Int], SIntLit i, env.vsym)
@@ -368,8 +372,8 @@ let check_ast ast =
                 | _ -> make_err "if/else condition must be a boolean");
             let temp_env = add_env_vsym env vsym in
             let (_, sifblock) = List.fold_left check_stmt (temp_env, []) i.ifblock in
-            let (_, selseblock) = List.fold_left check_stmt (temp_env, []) i.elseblock in
             let _ = check_last_stmt sifblock i.typ in
+            let (_, selseblock) = List.fold_left check_stmt (temp_env, []) i.elseblock in
             let _ = check_last_stmt selseblock i.typ in
             let i' = {
                 scond = (cond_typlist, cond_se);

@@ -12,15 +12,23 @@ let () =
     ] in
     let usage_msg = "usage: ./cll.native [-a|-s|-l] [file.cll]" in
     let channel = ref stdin in
-    Arg.parse speclist (fun filename -> channel := open_in filename) usage_msg;
-
+    let filename = ref "" in
+    Arg.parse speclist (fun file -> filename := file; channel := open_in file;) usage_msg;
     let lexbuf = Lexing.from_channel !channel in
     let ast = Parser.program Scanner.token lexbuf in
     match !action with
         Ast -> 
             print_string (Ast.string_of_program ast)
         | Sast ->
-            let sast = Semant.check_ast ast in
-            print_string (Sast.string_of_sprogram sast)
+            (try
+                let sast = Semant.check_ast ast in
+                print_string (Sast.string_of_sprogram sast)
+            with Failure(msg) ->
+                let file_out = !filename ^ ".out" in
+                let log = open_out file_out in
+                Printf.fprintf log "%s" (Ast.string_of_program ast);
+                close_out log;
+                print_string (msg ^ "\n(Check " ^ file_out ^ " for line numbers)");
+            )
         | LLVM_IR ->
             ()
