@@ -1,0 +1,6 @@
+if:none (true) {
+    type x = { X<int> };
+} else {
+    null;
+};
+0;

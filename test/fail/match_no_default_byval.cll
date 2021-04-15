@@ -1,0 +1,6 @@
+match:none (true) byvalue {
+    true {
+        null;
+    }
+};
+0;

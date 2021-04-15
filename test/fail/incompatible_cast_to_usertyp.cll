@@ -1,0 +1,5 @@
+type x = { X<int> };
+type y = { Y<list<int>> };
+a = (X) 0;
+(Y) a;
+0;

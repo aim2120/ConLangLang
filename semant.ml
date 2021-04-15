@@ -36,7 +36,7 @@ type semantic_env = {
 
 
 let check_ast ast =
-    let line_num: int ref = ref 0 in
+    let line_num: int ref = ref 1 in
     let make_err err = raise (Failure ("!!!ERROR!!! line " ^ string_of_int !line_num ^ ": " ^ err)) in
     let built_in_funs_list = [ ("sprint", [(String, "x")], None); ] in
     let built_in_funs =
@@ -89,7 +89,7 @@ let check_ast ast =
         | _ -> t
     in
     let add_typ_var tvsym (id, (l:(string * typ) list)) =
-        let already_decl_err = "typ variable" ^ id ^ " may not be redefined" in
+        let already_decl_err = "type variable " ^ id ^ " may not be redefined" in
         match id with
             _ when StringMap.mem id tvsym -> make_err already_decl_err
             | _ -> StringMap.add id l tvsym
@@ -124,7 +124,7 @@ let check_ast ast =
         | [] -> make_err err
     in
     let check_none s t = match t with
-        None -> make_err (s ^ "cannot be of type none")
+        None -> make_err (s ^ " cannot be of type none")
         | _ -> ()
     in
     let rec check_valid_typ env t =
@@ -263,7 +263,7 @@ let check_ast ast =
                 UserTypDef(ut) -> ut
                 | _ -> make_err "attempting access into non-typedef variable"
             in
-            let td_children = find_in_map env.tdsym ut (ut ^ " not a defined typedef") in
+            let td_children = find_in_map env.tdsym ut (ut ^ " not a defined typedef") in (* should never fail *)
             let rec find x = function
                 [] -> make_err "attempting access of undeclared typedef child"
                 | hd::tl -> let (child_t,child_id) = hd in if x = child_id then child_t else find x tl
@@ -279,11 +279,11 @@ let check_ast ast =
             let check_assignment (vsym, l) (id, e) = 
                 let (typlist, se, vsym') = check_expr (add_env_vsym env vsym) e in
                 let rec find x = function
-                    [] -> make_err "attempting assignment of undeclared typedef child"
+                    [] -> make_err ("attempting assignment of undeclared child of typdef " ^ ut)
                     | hd::tl -> let (child_t, child_id) = hd in if x = child_id then hd else find x tl
                 in
                 let (child_t, child_id) = find id td_children in
-                let t = check_typlist typlist child_t ("incompatible assignment to typedef child" ^ child_id) in 
+                let t = check_typlist typlist child_t ("incompatible assignment to typedef " ^ ut ^ " child " ^ child_id) in 
                 (* if e has multiple types, only keep the type that matches the child declaration *)
                 (vsym', (id, ([t], se))::l)
             in
@@ -329,7 +329,7 @@ let check_ast ast =
                         let (se_or_d, vsym') = match e_or_d with
                             ExprMatch(e) ->
                                 let (e_typlist, se, vsym') = check_expr (add_env_vsym env vsym) e in 
-                                let err = "block expression type doesn't match input type" in
+                                let err = "match expression type doesn't match input type" in
                                 let t = check_typlists input_typlist e_typlist err in
                                 (* only keep type that matches input ahd exprmatch *)
                                 (SExprMatch(([t], se)), vsym')

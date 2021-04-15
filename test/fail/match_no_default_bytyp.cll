@@ -1,0 +1,6 @@
+match:none (true) bytype {
+    bool {
+        null;
+    }
+};
+0;

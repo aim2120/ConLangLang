@@ -1,0 +1,3 @@
+type x = { X<int> };
+type x = { Y<int> };
+0;

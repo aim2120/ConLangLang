@@ -30,12 +30,12 @@ let () =
                     let log = open_out file_out in
                     Printf.fprintf log "%s" (Ast.string_of_program ast);
                     close_out log;
-                    print_string (msg ^ "\n(Check " ^ file_out ^ " for line numbers)");
+                    print_string (msg ^ "\n(Check " ^ file_out ^ " for line numbers)\n");
                 )
             | LLVM_IR ->
                 ()
     with
     Parsing.Parse_error ->
-        print_string ("!!!ERROR!!! line " ^ string_of_int !Scanner.line_num ^ ": parsing error")
+        print_string ("!!!ERROR!!! line " ^ string_of_int !Scanner.line_num ^ ": parsing error\n")
     | Failure(msg) ->
-        print_string ("!!!ERROR!!! line " ^ string_of_int !Scanner.line_num ^ ": " ^ msg)
+        print_string ("!!!ERROR!!! line " ^ string_of_int !Scanner.line_num ^ ": " ^ msg ^ "\n")

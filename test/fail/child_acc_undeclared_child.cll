@@ -1,0 +1,4 @@
+typedef $A = { int a; };
+$A $a = { a = 0; };
+$a.b;
+0;

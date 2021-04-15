@@ -3,7 +3,7 @@
 {
 open Parser
 
-let line_num: int ref = ref 0
+let line_num: int ref = ref 1
 }
 
 let digit = ['0' - '9']

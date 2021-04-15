@@ -1,0 +1,3 @@
+typedef $A = { int a; };
+typedef $A = { int b; };
+0;

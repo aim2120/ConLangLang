@@ -1,0 +1,9 @@
+match:none (true) byvalue {
+    true {
+        null;
+    }
+    default {
+        type x = { X<int> };
+    }
+};
+0;

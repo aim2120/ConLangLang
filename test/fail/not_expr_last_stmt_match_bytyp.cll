@@ -1,0 +1,9 @@
+match:none (true) bytype {
+    bool {
+        null;
+    }
+    default {
+        type x = { X<int> };
+    }
+};
+0;
