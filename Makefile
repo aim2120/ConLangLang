@@ -8,7 +8,7 @@ clean:
 
 .PHONY: test
 test:
-	./bin/testall.sh
+	./bin/testall.zsh
 
 cll.native:
 	ocamlbuild -use-ocamlfind cll.native
