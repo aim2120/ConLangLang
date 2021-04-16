@@ -11,6 +11,7 @@ test:
 	./bin/testall.zsh
 
 cll.native:
+	opam config exec -- \
 	ocamlbuild -use-ocamlfind cll.native
 
 parser.ml:
