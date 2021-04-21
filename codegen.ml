@@ -59,19 +59,19 @@ let translate env sast =
 *)
     in
 
-    (* printf
+    (* Creating top-level function *)
+    let last_stmt = List.hd (List.rev sast) in
+    let return_t = typ_to_ltyp (match last_stmt with SExprStmt(e) -> List.hd (fst e) | _ -> raise (Failure "weird")) in
+    let func_t = L.function_type return_t [||] in
+    let main = L.define_function "main" func_t the_module in
+    let builder = L.builder_at_end context (L.entry_block main) in
+
+    (* printf *)
     let printf_t : L.lltype =
         L.var_arg_function_type i32_t [| L.pointer_type i8_t |] in
     let printf_func : L.llvalue =
         L.declare_function "printf" printf_t the_module in
     let str_format = L.build_global_stringptr "%s\n" "fmt" builder in
- *)
-    (* Creating top-level function *)
-    let last_stmt = List.hd (List.rev sast) in
-    let return_t = typ_to_ltyp (match last_stmt with SExprStmt(e) -> List.hd (fst e) | _ -> raise (Failure "weird")) in
-    let func_t = L.function_type return_t [||] in
-    let the_function = L.define_function "the_function" func_t the_module in
-    let builder = L.builder_at_end context (L.entry_block the_function) in
 
     let rec expr builder = function
           SIntLit(i) -> L.const_int i32_t i
@@ -122,6 +122,14 @@ let translate env sast =
                 let first_node_addr = L.build_alloca list_t (prefix ^ "0") builder in
                 traverse_list (first_node_addr, 0) l';
                 first_node_addr
+        | SFunCall("sprint", [sexpr]) ->
+            let e = snd sexpr in
+            let s = L.build_global_stringptr "Hello, world!\n" "" builder in 
+            let p = L.build_in_bounds_gep s [| L.const_int i32_t 0 |] "p" builder in
+            L.build_call printf_func [| p |] "printf" builder
+            (*
+            L.build_call printf_func [| str_format; (expr builder e) |] "printf" builder
+            *)
         | _ -> raise (Failure ("expr" ^ not_impl))
         (*
         *)
@@ -135,7 +143,6 @@ let translate env sast =
         | SCast(t, e) -> ()
         | SAssign(v, e) -> ()
         | STypDefAssign(t, v, l) -> ()
-        | SFunCall(v, l) ->
         | SMatch(m) -> ()
         | SIfElse(i) -> ()
         | SWhile(w) -> ()

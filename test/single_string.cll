@@ -1,1 +1,1 @@
-'hello';
+sprint('hello');

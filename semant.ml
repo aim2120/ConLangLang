@@ -37,7 +37,7 @@ type semantic_env = {
 let check_ast ast =
     let line_num: int ref = ref 1 in
     let make_err err = raise (Failure ("!!!ERROR!!! line " ^ string_of_int !line_num ^ ": " ^ err)) in
-    let built_in_funs_list = [ ("sprint", [(String, "x")], Null); ] in
+    let built_in_funs_list = [ ("sprint", [(String, "x")], Int); ] in
     let built_in_funs =
         let add_built_in map (id, formals, t) =
             StringMap.add id [Fun(formals, t)] map in

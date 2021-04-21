@@ -1,14 +1,18 @@
 #!/bin/zsh
 
 file=$1
-cll_file="test/${file}.cll"
-ll_file="cll_build/${file}.ll"
-s_file="cll_build/${file}.s"
+src_dir="test"
+build_dir="cll_build"
+
+cll_file="${src_dir}/${file}.cll"
+ll_file="${build_dir}/${file}.ll"
+s_file="${build_dir}/${file}.s"
+
 ./cll.native $cll_file > $ll_file
-llc $ll_file
+llc -relocation-model=pic $ll_file > $s_file
 if [[ $# -eq 2 ]]; then
-    gcc $s_file $2 -o "cll_build/${file}"
+    cc -o $s_file lib/c_libraries.c $2 "${build_dir}/${file}"
 else
-    gcc $s_file -o "cll_build/${file}"
+    cc -o "${build_dir}/${file}" $s_file
 fi
 
