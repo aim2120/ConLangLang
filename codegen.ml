@@ -124,12 +124,12 @@ let translate env sast =
                 first_node_addr
         | SFunCall("sprint", [sexpr]) ->
             let e = snd sexpr in
+            (*
             let s = L.build_global_stringptr "Hello, world!\n" "" builder in 
             let p = L.build_in_bounds_gep s [| L.const_int i32_t 0 |] "p" builder in
             L.build_call printf_func [| p |] "printf" builder
-            (*
-            L.build_call printf_func [| str_format; (expr builder e) |] "printf" builder
             *)
+            L.build_call printf_func [| str_format; (expr builder e) |] "printf" builder
         | _ -> raise (Failure ("expr" ^ not_impl))
         (*
         *)
