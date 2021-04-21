@@ -1,15 +1,16 @@
 (* Top level of the CLL compiler *)
 
-type action = Ast | Sast | LLVM_IR
+type action = Ast | Sast | LLVM_IR | Compile
 
 let () =
     try
-        let action = ref LLVM_IR in
+        let action = ref Compile in
         let set_action a () = action := a in
         let speclist = [
             ("-a", Arg.Unit (set_action Ast), "Print the AST");
             ("-s", Arg.Unit (set_action Sast), "Print the SAST");
             ("-l", Arg.Unit (set_action LLVM_IR), "Print the generated LLVM IR");
+            ("-c", Arg.Unit (set_action Compile), "Compile the program");
         ] in
         let usage_msg = "usage: ./cll.native [-a|-s|-l] [file.cll]" in
         let channel = ref stdin in
@@ -44,4 +45,7 @@ let () =
                 Ast -> ()
                 | Sast -> print_string (Sast.string_of_sprogram sast)
                 | LLVM_IR -> print_string (Llvm.string_of_llmodule (Codegen.translate env sast))
+                | Compile -> let m = Codegen.translate env sast in
+	                Llvm_analysis.assert_valid_module m;
+	                print_string (Llvm.string_of_llmodule m)
     with Failure(msg) -> print_string msg
