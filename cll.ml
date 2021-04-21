@@ -30,7 +30,7 @@ let () =
         match !action with
             Ast -> print_string (Ast.string_of_program ast)
             |_ ->
-                let sast = try Semant.check_ast ast
+                let (env, sast) = try Semant.check_ast ast
                     with Failure(msg) ->
                         let file_out = !filename ^ ".ast" in
                         let log = open_out file_out in
@@ -43,5 +43,5 @@ let () =
                 match !action with
                 Ast -> ()
                 | Sast -> print_string (Sast.string_of_sprogram sast)
-                | LLVM_IR -> Codegen.translate sast
+                | LLVM_IR -> print_string (Llvm.string_of_llmodule (Codegen.translate env sast))
     with Failure(msg) -> print_string msg
