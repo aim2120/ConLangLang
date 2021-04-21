@@ -62,8 +62,8 @@ rule token = parse
 | "true"   { BOOLLIT(true)  }
 | "false"  { BOOLLIT(false) }
 | digits '.'  digit* as lxm { FLOATLIT(lxm) }
-| '\'' [^ '\'']* '\'' as lxm { STRLIT(lxm) }
-| '"' [^ '"']* '"' as lxm { RELIT(lxm) }
+| '\'' [^ '\'']* '\'' as lxm { let len = String.length lxm in STRLIT(String.sub lxm 1 (len - 2)) }
+| '"' [^ '"']* '"' as lxm { let len = String.length lxm in RELIT(String.sub lxm 1 (len - 2)) }
 | lowercase ['a'-'z' 'A'-'Z' '0'-'9' '_']*     as lxm { ID(lxm) }
 | '$' lowercase ['a'-'z' 'A'-'Z' '0'-'9' '_']* as lxm { UTDID(lxm) }
 | uppercase ['a'-'z' 'A'-'Z' '0'-'9' '_']*     as lxm { UT(lxm) }
