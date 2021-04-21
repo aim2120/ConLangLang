@@ -10,7 +10,7 @@ type typ = Int | Bool | Float | String | Regex
   | Fun of (typ * string) list * typ
   | UserTyp of string
   | UserTypDef of string
-  | None
+  | Null
 
 type typ_or_def = TypMatch of typ | DefaultTyp
 
@@ -36,15 +36,15 @@ type expr =
   | IfElse of ifelse
   | While of whle
   | Expr of expr
-  | Null
+  | NullExpr
 and funlit = {
     formals: (typ * string) list;
-    typ: typ;
-    block: stmt list;
+    ftyp: typ;
+    fblock: stmt list;
 }
 and mtch = {
-    input: expr;
-    typ: typ;
+    minput: expr;
+    mtyp: typ;
     matchlist: matchlist;
 }
 and matchlist =
@@ -52,15 +52,15 @@ and matchlist =
   | TypMatchList of (typ_or_def * stmt list) list
 and expr_or_def = ExprMatch of expr | DefaultExpr
 and ifelse = {
-    cond: expr;
-    typ: typ;
+    icond: expr;
+    ityp: typ;
     ifblock: stmt list;
     elseblock: stmt list;
 }
 and whle = {
-    cond: expr;
-    typ: typ;
-    block: stmt list;
+    wcond: expr;
+    wtyp: typ;
+    wblock: stmt list;
 }
 and stmt =
     ExprStmt of expr
@@ -99,7 +99,7 @@ let rec string_of_typ = function
   | Fun(f,t) -> "fun" ^ "<" ^ String.concat ", " (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) f) ^ ":" ^ string_of_typ t ^ ">"
   | UserTyp(u) -> u
   | UserTypDef(u) -> u
-  | None -> "none"
+  | Null -> "none"
 
 let string_of_typ_or_def = function
     TypMatch(t) -> string_of_typ t
@@ -108,16 +108,15 @@ let string_of_typ_or_def = function
 let rec string_of_expr = function
     IntLit(i) -> string_of_int i
   | FloatLit(f) -> f
-  | BoolLit(true) -> "true"
-  | BoolLit(false) -> "false"
+  | BoolLit(b) -> if b then "true" else "false"
   | StrLit(s) -> "'" ^ String.sub s 1 ((String.length s) - 2)  ^ "'" (* substring removes quotes around string *)
   | ReLit(r) -> "\"" ^ String.sub r 1 ((String.length r) - 2) ^ "\"" (* substring removes quotes around string *)
   | ListLit(t, l) -> "<" ^ string_of_typ t ^ ">" ^ "[" ^ String.concat ", " (List.map string_of_expr l) ^ "]"
   | DictLit(t1, t2, d) -> "<" ^ string_of_typ t1 ^ "," ^ string_of_typ t2 ^ ">" ^ "{" ^
       String.concat "," (List.map (fun p -> string_of_expr (fst p) ^ ":" ^ string_of_expr (snd p)) d) ^ "}"
   | FunLit(f) -> "<" ^ String.concat ", " (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) f.formals) ^ ":" ^
-    string_of_typ f.typ ^ ">{" ^ string_of_stmtblock f.block ^ "}"
-  | Null -> "null"
+    string_of_typ f.ftyp ^ ">{" ^ string_of_stmtblock f.fblock ^ "}"
+  | NullExpr -> "null"
   | Binop(e1, o, e2) ->
       string_of_expr e1 ^ " " ^ string_of_binop o ^ " " ^ string_of_expr e2
   | Unop(o, e) -> string_of_uop o ^ string_of_expr e
@@ -126,10 +125,10 @@ let rec string_of_expr = function
   | Assign(v, e) -> v ^ " = " ^ string_of_expr e
   | TypDefAssign(t, v, l) -> t ^ " " ^ v ^ " = {" ^ String.concat "" (List.map (fun p -> fst p ^ " = " ^ string_of_expr (snd p) ^ ";") l) ^ "}"
   | FunCall(v, l) -> v ^ "(" ^ String.concat ", " (List.map string_of_expr l) ^ ")"
-  | Match(m) -> "match:" ^ string_of_typ m.typ ^ " (" ^ string_of_expr m.input ^ ")" ^ string_of_matchlist m.matchlist
-  | IfElse(i) -> "if:" ^ string_of_typ i.typ ^ " (" ^ string_of_expr i.cond ^ ") {" ^
+  | Match(m) -> "match:" ^ string_of_typ m.mtyp ^ " (" ^ string_of_expr m.minput ^ ")" ^ string_of_matchlist m.matchlist
+  | IfElse(i) -> "if:" ^ string_of_typ i.ityp ^ " (" ^ string_of_expr i.icond ^ ") {" ^
       string_of_stmtblock i.ifblock ^ "} else {" ^ string_of_stmtblock i.elseblock ^ "}"
-  | While(w) -> "while:" ^ string_of_typ w.typ ^ " (" ^ string_of_expr w.cond ^ ") {" ^ string_of_stmtblock w.block ^ "}"
+  | While(w) -> "while:" ^ string_of_typ w.wtyp ^ " (" ^ string_of_expr w.wcond ^ ") {" ^ string_of_stmtblock w.wblock ^ "}"
   | Id(v) -> v
   | UTDId(v) -> v
   | Expr(e) -> "(" ^ string_of_expr e ^ ")"

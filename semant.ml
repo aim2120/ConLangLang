@@ -34,11 +34,10 @@ type semantic_env = {
     (* user variables: all types *)
 }
 
-
 let check_ast ast =
     let line_num: int ref = ref 1 in
     let make_err err = raise (Failure ("!!!ERROR!!! line " ^ string_of_int !line_num ^ ": " ^ err)) in
-    let built_in_funs_list = [ ("sprint", [(String, "x")], None); ] in
+    let built_in_funs_list = [ ("sprint", [(String, "x")], Null); ] in
     let built_in_funs =
         let add_built_in map (id, formals, t) =
             StringMap.add id [Fun(formals, t)] map in
@@ -124,7 +123,7 @@ let check_ast ast =
         | [] -> make_err err
     in
     let check_none s t = match t with
-        None -> make_err (s ^ " cannot be of type none")
+        Null -> make_err (s ^ " cannot be of type none")
         | _ -> ()
     in
     let rec check_valid_typ env t =
@@ -198,21 +197,21 @@ let check_ast ast =
             let (slist, vsym) = List.fold_left check_dict ([], env.vsym) l in
             ([Dict(t1,t2)], SDictLit(t1, t2, List.rev slist), vsym)
         | FunLit(f) ->
-            check_valid_typ env f.typ;
+            check_valid_typ env f.ftyp;
             let check_formal vsym (t, id) =
                 check_none "formal argument" t;
                 check_valid_typ env t;
                 add_var vsym (id, [t])
             in
             let temp_env = add_env_vsym env (List.fold_left check_formal env.vsym f.formals) in
-            let (_,sblock) = List.fold_left check_stmt (temp_env, []) f.block in
-            let _ = check_last_stmt sblock f.typ in
+            let (_, sfblock) = List.fold_left check_stmt (temp_env, []) f.fblock in
+            let _ = check_last_stmt sfblock f.ftyp in
             let f' = {
                 sformals = f.formals;
-                styp = f.typ;
-                sblock = List.rev sblock;
+                sftyp = f.ftyp;
+                sfblock = List.rev sfblock;
             } in
-            ([Fun(f'.sformals, f'.styp)], SFunLit(f'), env.vsym)
+            ([Fun(f'.sformals, f'.sftyp)], SFunLit(f'), env.vsym)
         | Binop(e1,o,e2) ->
             let (typlist1, se1, vsym) = check_expr env e1 in
             let (typlist2, se2, vsym') = check_expr (add_env_vsym env vsym) e2 in
@@ -222,7 +221,7 @@ let check_ast ast =
             let at = if e1_at = e2_at then e1_at else make_err err in
             let typlist = match o with
             Mult | Div | Mod | Add | Sub when at = Int || at = Float -> typlist1
-            | Concat when at = String -> typlist1
+            | Concat when at = String || (match at with List(_) -> true | _ -> false) -> typlist1
             | And | Or when at = Bool -> typlist1
             | Equal | Greater | Less when at = Int || at = Float || at = String -> [Bool]
             | _ -> make_err "binary operation on operands of incorrect type"
@@ -280,7 +279,7 @@ let check_ast ast =
                 let (typlist, se, vsym') = check_expr (add_env_vsym env vsym) e in
                 let rec find x = function
                     [] -> make_err ("attempting assignment of undeclared child of typdef " ^ ut)
-                    | hd::tl -> let (child_t, child_id) = hd in if x = child_id then hd else find x tl
+                    | hd::tl -> let (_, child_id) = hd in if x = child_id then hd else find x tl
                 in
                 let (child_t, child_id) = find id td_children in
                 let t = check_typlist typlist child_t ("incompatible assignment to typedef " ^ ut ^ " child " ^ child_id) in 
@@ -317,8 +316,8 @@ let check_ast ast =
             let (l', vsym) = check_args formals l [] env.vsym in
             ([typ], SFunCall(id, List.rev l'), vsym)
         | Match(m) ->
-            check_valid_typ env m.typ;
-            let (input_typlist, input_se, vsym) = check_expr env m.input in
+            check_valid_typ env m.mtyp;
+            let (input_typlist, input_se, vsym) = check_expr env m.minput in
             let smatchlist = match m.matchlist with
                 ValMatchList(l) ->
                     let rec find_default = function
@@ -337,7 +336,7 @@ let check_ast ast =
                         in
                         let temp_env = add_env_vsym env vsym' in
                         let (_,sstmts) = List.fold_left check_stmt (temp_env, []) stmts in
-                        let _ = check_last_stmt sstmts m.typ in
+                        let _ = check_last_stmt sstmts m.mtyp in
                         (se_or_d, List.rev sstmts)::blocks
                     in let l' = List.fold_left check_block [] l in
                     SValMatchList(List.rev l')
@@ -352,63 +351,63 @@ let check_ast ast =
                             | DefaultTyp -> ());
                         let temp_env = add_env_vsym env vsym in
                         let (_,sstmts) = List.fold_left check_stmt (temp_env, []) stmts in
-                        let _ = check_last_stmt sstmts m.typ in
+                        let _ = check_last_stmt sstmts m.mtyp in
                         (t_or_d, List.rev sstmts)::blocks
                     in let l' = List.fold_left check_block [] l in
                     STypMatchList(List.rev l')
             in
             let m' = {
-                sinput = (input_typlist, input_se);
-                styp = m.typ;
+                sminput = (input_typlist, input_se);
+                smtyp = m.mtyp;
                 smatchlist = smatchlist;
             } in
-            ([m'.styp], SMatch(m'), vsym)
+            ([m'.smtyp], SMatch(m'), vsym)
         | IfElse(i) ->
-            check_valid_typ env i.typ;
-            let (cond_typlist, cond_se, vsym) = check_expr env i.cond in
+            check_valid_typ env i.ityp;
+            let (cond_typlist, cond_se, vsym) = check_expr env i.icond in
             let at = to_assc_typ env.tsym (List.hd cond_typlist) in
             (match at with
                 Bool -> ()
                 | _ -> make_err "if/else condition must be a boolean");
             let temp_env = add_env_vsym env vsym in
             let (_, sifblock) = List.fold_left check_stmt (temp_env, []) i.ifblock in
-            let _ = check_last_stmt sifblock i.typ in
+            let _ = check_last_stmt sifblock i.ityp in
             let (_, selseblock) = List.fold_left check_stmt (temp_env, []) i.elseblock in
-            let _ = check_last_stmt selseblock i.typ in
+            let _ = check_last_stmt selseblock i.ityp in
             let i' = {
-                scond = (cond_typlist, cond_se);
-                styp = i.typ;
+                sicond = (cond_typlist, cond_se);
+                sityp = i.ityp;
                 sifblock = List.rev sifblock;
                 selseblock = List.rev selseblock;
 
             } in
-            ([i'.styp], SIfElse(i'), vsym)
+            ([i'.sityp], SIfElse(i'), vsym)
         | While(w) ->
-            check_valid_typ env w.typ;
-            let (cond_typlist, cond_se, vsym) = check_expr env w.cond in
+            check_valid_typ env w.wtyp;
+            let (cond_typlist, cond_se, vsym) = check_expr env w.wcond in
             let at = to_assc_typ env.tsym (List.hd cond_typlist) in
             (match at with
                 Bool -> ()
                 | _ -> make_err "while condition must be a boolean");
             let temp_env = add_env_vsym env vsym in
-            let (_, sblock) = List.fold_left check_stmt (temp_env, []) w.block in
-            let _ = check_last_stmt sblock w.typ in
+            let (_, sblock) = List.fold_left check_stmt (temp_env, []) w.wblock in
+            let _ = check_last_stmt sblock w.wtyp in
             let w' = {
-                scond = (cond_typlist, cond_se);
-                styp = w.typ;
-                sblock = List.rev sblock;
+                swcond = (cond_typlist, cond_se);
+                swtyp = w.wtyp;
+                swblock = List.rev sblock;
             } in
-            ([w'.styp], SWhile(w'), vsym)
+            ([w'.swtyp], SWhile(w'), vsym)
         | Expr(e) ->
             check_expr env e
-        | Null -> ([None], SNull, env.vsym)
+        | NullExpr -> ([Null], SNullExpr, env.vsym)
     
     in
-    let (_, sast) = List.fold_left check_stmt (empty_env, []) ast 
+    let (env, sast) = List.fold_left check_stmt (empty_env, []) ast 
     in
 (* 
     let (x, _) = List.fold_left (fun (x, num) y -> print_string ("stmt" ^ string_of_int num); (check_stmt x y, num + 1)) ((empty_env, []), 0) ast
     in
     let sast = snd x in
 *)
-    List.rev sast
+    (env, List.rev sast)

@@ -26,15 +26,15 @@ and sx =
   | SIfElse of sifelse
   | SWhile of swhle
   | SExpr of sexpr
-  | SNull
+  | SNullExpr
 and sfunlit = {
     sformals: (typ * string) list;
-    styp: typ;
-    sblock: sstmt list;
+    sftyp: typ;
+    sfblock: sstmt list;
 }
 and smtch = {
-    sinput: sexpr;
-    styp: typ;
+    sminput: sexpr;
+    smtyp: typ;
     smatchlist: smatchlist;
 }
 and smatchlist =
@@ -42,15 +42,15 @@ and smatchlist =
   | STypMatchList of (typ_or_def * sstmt list) list
 and sexpr_or_def = SExprMatch of sexpr | SDefaultExpr
 and sifelse = {
-    scond: sexpr;
-    styp: typ;
+    sicond: sexpr;
+    sityp: typ;
     sifblock: sstmt list;
     selseblock: sstmt list;
 }
 and swhle = {
-    scond: sexpr;
-    styp: typ;
-    sblock: sstmt list;
+    swcond: sexpr;
+    swtyp: typ;
+    swblock: sstmt list;
 }
 and sstmt =
     SExprStmt of sexpr
@@ -65,16 +65,15 @@ let rec string_of_sexpr sexpr =
   let s = match snd sexpr with
     SIntLit(i) -> string_of_int i
   | SFloatLit(f) -> f
-  | SBoolLit(true) -> "true"
-  | SBoolLit(false) -> "false"
+  | SBoolLit(b) -> if b then "true" else "false"
   | SStrLit(s) -> "'" ^ String.sub s 1 ((String.length s) - 2)  ^ "'" (* substring removes quotes around string *)
   | SReLit(r) -> "\"" ^ String.sub r 1 ((String.length r) - 2) ^ "\"" (* substring removes quotes around string *)
   | SListLit(t, l) -> "<" ^ string_of_typ t ^ ">[" ^ String.concat ", " (List.map string_of_sexpr l) ^ "]"
   | SDictLit(t1, t2, d) -> "<" ^ string_of_typ t1 ^ "," ^ string_of_typ t2 ^ ">" ^ "{" ^
       String.concat "," (List.map (fun p -> string_of_sexpr (fst p) ^ ":" ^ string_of_sexpr (snd p)) d) ^ "}"
   | SFunLit(f) -> "<" ^ String.concat ", " (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) f.sformals) ^ ":" ^
-    string_of_typ f.styp ^ ">{\n" ^ string_of_sstmtblock f.sblock ^ "}"
-  | SNull -> "null"
+    string_of_typ f.sftyp ^ ">{\n" ^ string_of_sstmtblock f.sfblock ^ "}"
+  | SNullExpr -> "null"
   | SBinop(e1, o, e2) -> string_of_sexpr e1 ^ " " ^ string_of_binop o ^ " " ^ string_of_sexpr e2
   | SUnop(o, e) -> string_of_uop o ^ string_of_sexpr e
   | SChildAcc(e, s) -> string_of_sexpr e ^ "." ^ s
@@ -82,10 +81,10 @@ let rec string_of_sexpr sexpr =
   | SAssign(v, e) -> v ^ " = " ^ string_of_sexpr e
   | STypDefAssign(t, v, l) -> t ^ " " ^ v ^ " = {" ^ String.concat "" (List.map (fun p -> fst p ^ " = " ^ string_of_sexpr (snd p) ^ ";") l) ^ "}"
   | SFunCall(v, l) -> v ^ "(" ^ String.concat ", " (List.map string_of_sexpr l) ^ ")"
-  | SMatch(m) -> "match:" ^ string_of_typ m.styp ^ " (" ^ string_of_sexpr m.sinput ^ ")" ^ string_of_smatchlist m.smatchlist
-  | SIfElse(i) -> "if:" ^ string_of_typ i.styp ^ " (" ^ string_of_sexpr i.scond ^ ") {\n" ^
+  | SMatch(m) -> "match:" ^ string_of_typ m.smtyp ^ " (" ^ string_of_sexpr m.sminput ^ ")" ^ string_of_smatchlist m.smatchlist
+  | SIfElse(i) -> "if:" ^ string_of_typ i.sityp ^ " (" ^ string_of_sexpr i.sicond ^ ") {\n" ^
       string_of_sstmtblock i.sifblock ^ "} else {\n" ^ string_of_sstmtblock i.selseblock ^ "}"
-  | SWhile(w) -> "while:" ^ string_of_typ w.styp ^ " (" ^ string_of_sexpr w.scond ^ ") {\n" ^ string_of_sstmtblock w.sblock ^ "}"
+  | SWhile(w) -> "while:" ^ string_of_typ w.swtyp ^ " (" ^ string_of_sexpr w.swcond ^ ") {\n" ^ string_of_sstmtblock w.swblock ^ "}"
   | SId(v) -> v
   | SUTDId(v) -> v
   | SExpr(e) -> "(" ^ string_of_sexpr e ^ ")"

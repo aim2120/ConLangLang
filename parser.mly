@@ -61,7 +61,7 @@ expr:
     | RELIT { ReLit($1) }
     | LANGLE typ RANGLE LSQUARE exprlist_opt RSQUARE { ListLit($2, $5) }
     | LANGLE typ COMMA typ RANGLE LCURLY exprpairlist_opt RCURLY { DictLit($2, $4, $7) }
-    | LANGLE formallist_opt COLON typ RANGLE LCURLY stmtblock RCURLY { FunLit({formals=$2; typ=$4; block=(List.rev $7);}) }
+    | LANGLE formallist_opt COLON typ RANGLE LCURLY stmtblock RCURLY { FunLit({formals=$2; ftyp=$4; fblock=(List.rev $7);}) }
     | expr AND expr { Binop($1, And, $3) }
     | expr OR expr { Binop($1, Or, $3) }
     | expr EQ expr { Binop($1, Equal, $3) }
@@ -82,11 +82,11 @@ expr:
     | ID { Id($1) }
     | UTDID { UTDId($1) }
     | ID LPAREN exprlist_opt RPAREN { FunCall($1, $3) }
-    | MATCH COLON typ LPAREN expr RPAREN matchlist { Match({input=$5; typ=$3; matchlist=$7;}) }
-    | IF COLON typ LPAREN expr RPAREN LCURLY stmtblock RCURLY ELSE LCURLY stmtblock RCURLY { IfElse({cond=$5; typ=$3; ifblock=(List.rev $8); elseblock=(List.rev $12);}) }
-    | WHILE COLON typ LPAREN expr RPAREN LCURLY stmtblock RCURLY { While({cond=$5; typ=$3; block=(List.rev $8);}) }
+    | MATCH COLON typ LPAREN expr RPAREN matchlist { Match({minput=$5; mtyp=$3; matchlist=$7;}) }
+    | IF COLON typ LPAREN expr RPAREN LCURLY stmtblock RCURLY ELSE LCURLY stmtblock RCURLY { IfElse({icond=$5; ityp=$3; ifblock=(List.rev $8); elseblock=(List.rev $12);}) }
+    | WHILE COLON typ LPAREN expr RPAREN LCURLY stmtblock RCURLY { While({wcond=$5; wtyp=$3; wblock=(List.rev $8);}) }
     | LPAREN expr RPAREN { Expr($2) }
-    | NULL { Null }
+    | NULL { NullExpr }
 
 /*
 
@@ -157,5 +157,5 @@ typ:
     | FUN LANGLE formallist_opt COLON typ RANGLE { Fun($3, $5) }
     | UT { UserTyp($1) }
     | UTD { UserTypDef($1) }
-    | NONE { None }
+    | NONE { Null }
 
