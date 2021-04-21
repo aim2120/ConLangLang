@@ -5,7 +5,7 @@ output="***********************************\n"
 output+="THESE TESTS SHOULD PASS\n"
 output+="***********************************\n"
 output+="\n"
-for t in ./test/pass/*.cll; do
+for t in ./test/*.cll; do
     output+="***********************************\n"
     to_stdout="TESTING FILE: ${t}"
     echo "$to_stdout"
