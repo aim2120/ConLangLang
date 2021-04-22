@@ -60,9 +60,7 @@ let translate env sast =
     in
 
     (* Creating top-level function *)
-    let last_stmt = List.hd (List.rev sast) in
-    let return_t = typ_to_ltyp (match last_stmt with SExprStmt(e) -> List.hd (fst e) | _ -> raise (Failure "weird")) in
-    let func_t = L.function_type return_t [||] in
+    let func_t = L.function_type i32_t [||] in
     let main = L.define_function "main" func_t the_module in
     let builder = L.builder_at_end context (L.entry_block main) in
 
@@ -91,49 +89,62 @@ let translate env sast =
             let addr_end = L.build_in_bounds_gep addr [|L.const_int i8_t (len - 1)|] "end" builder in
             ignore(L.build_store (L.const_int i8_t 0) addr_end builder);
             addr
-        | SReLit(r) -> L.const_string context r
         | SListLit(t, l) ->
                 let ltyp = typ_to_ltyp t in
+                (*
+                %Size = getelementptr %T* null, i32 1
+                %SizeI = ptrtoint %T* %Size to i32
+                *)
+                (*
+                let size = L.size_of (L.pointer_type ltyp) in
+                let zero = L.const_mul (size) (L.const_int i32_t 0) in
+                let one = size in
+                *)
+                let zero = L.const_int i32_t 0 in
+                let one = L.const_int i32_t 1 in
+                let l' = List.map (fun e -> snd e) l in
                 let prefix = "l" in
                 let data = "d" in
+                L.struct_set_body list_t [| L.pointer_type ltyp; L.pointer_type list_t |] false;
+                let first_node_addr = L.build_alloca list_t (prefix ^ "0") builder in
                 let make_node (node_addr, i) e =
                     let i' = string_of_int i in
-                    (* list_t = { (typ_to_ltyp t) *data; list_t *next; } *)
+                    (* list_t = { void *data; list_t *next; } *)
                     (* node -> data *)
                     let node_data = expr builder e in
                     let node_data_addr = L.build_alloca ltyp (data ^ i') builder in
                     ignore(L.build_store node_data node_data_addr builder);
-                    ignore(L.build_store node_data_addr node_addr builder);
+                    let node_data_gep = L.build_in_bounds_gep node_addr [| zero; zero |] "" builder in
+                    ignore(L.build_store node_data_addr node_data_gep builder);
                     let i = i + 1 in
                     let i' = string_of_int i in
-                    (* node -> next *)
-                    let node_addr_ = L.build_in_bounds_gep node_addr [|L.const_int i32_t 0; node_data_addr|] (prefix ^ i') builder in
-                    let next_node_addr = L.build_alloca list_t (prefix ^ string_of_int i) builder in
+                    let node_addr_ = L.build_in_bounds_gep node_addr [| zero; one |] (prefix ^ i') builder in
+                    let next_node_addr = L.build_alloca list_t (prefix ^ i') builder in
                     ignore(L.build_store next_node_addr node_addr_ builder);
                     (next_node_addr, i)
+                    (*
+                    (node_addr, i)
+                    *)
                 in
-                let l' = List.map (fun e -> snd e) l in
+                (*
+                ignore(make_node (first_node_addr, 0) (List.hd l'));
+                *)
                 let rec traverse_list (node_addr, i) = function
                     hd::tl ->
                         traverse_list (make_node (node_addr, i) hd) tl
                     | [] ->
-                        ignore(L.build_store (L.const_null (L.type_of node_addr)) node_addr builder)
+                        ignore(L.build_store (L.const_null (list_t)) node_addr builder)
                 in
-                let first_node_addr = L.build_alloca list_t (prefix ^ "0") builder in
                 traverse_list (first_node_addr, 0) l';
                 first_node_addr
         | SFunCall("sprint", [sexpr]) ->
             let e = snd sexpr in
-            (*
-            let s = L.build_global_stringptr "Hello, world!\n" "" builder in 
-            let p = L.build_in_bounds_gep s [| L.const_int i32_t 0 |] "p" builder in
-            L.build_call printf_func [| p |] "printf" builder
-            *)
             L.build_call printf_func [| str_format; (expr builder e) |] "printf" builder
         | _ -> raise (Failure ("expr" ^ not_impl))
         (*
         *)
         (*
+        | SReLit(r) -> L.const_string context r
         | SDictLit(t1, t2, d) -> ()
         | SFunLit(f) -> ()
         | SNullExpr -> ()
@@ -151,12 +162,13 @@ let translate env sast =
         | SExpr(e) -> ()
                     *)
     in
-    let rec stmt builder = function
+    let rec stmt (builder, v) = function
         SExprStmt(e) ->
             let v = expr builder (snd e) in
-            let _ = L.build_ret v builder in
-            builder
+            (builder, v)
         | _      -> raise (Failure ("stmt" ^ not_impl))
     in
-    ignore(List.fold_left stmt builder sast);
+    let _ = List.fold_left stmt (builder, L.const_int i32_t 0) sast (* dummy llval *)
+    in
+    ignore(L.build_ret (L.const_int i32_t 0) builder);
     the_module

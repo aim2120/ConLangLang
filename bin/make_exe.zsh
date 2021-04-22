@@ -11,8 +11,8 @@ s_file="${build_dir}/${file}.s"
 ./cll.native $cll_file > $ll_file
 llc -relocation-model=pic $ll_file > $s_file
 if [[ $# -eq 2 ]]; then
-    cc -o $s_file lib/c_libraries.c $2 "${build_dir}/${file}"
+    gcc -o $s_file lib/c_libraries.c $2 "${build_dir}/${file}"
 else
-    cc -o "${build_dir}/${file}" $s_file
+    gcc -o "${build_dir}/${file}" $s_file
 fi
 
