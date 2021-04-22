@@ -91,15 +91,6 @@ let translate env sast =
             addr
         | SListLit(t, l) ->
                 let ltyp = typ_to_ltyp t in
-                (*
-                %Size = getelementptr %T* null, i32 1
-                %SizeI = ptrtoint %T* %Size to i32
-                *)
-                (*
-                let size = L.size_of (L.pointer_type ltyp) in
-                let zero = L.const_mul (size) (L.const_int i32_t 0) in
-                let one = size in
-                *)
                 let zero = L.const_int i32_t 0 in
                 let one = L.const_int i32_t 1 in
                 let l' = List.map (fun e -> snd e) l in
@@ -116,19 +107,14 @@ let translate env sast =
                     ignore(L.build_store node_data node_data_addr builder);
                     let node_data_gep = L.build_in_bounds_gep node_addr [| zero; zero |] "" builder in
                     ignore(L.build_store node_data_addr node_data_gep builder);
+                    (* node -> next *)
                     let i = i + 1 in
                     let i' = string_of_int i in
                     let node_addr_ = L.build_in_bounds_gep node_addr [| zero; one |] (prefix ^ i') builder in
                     let next_node_addr = L.build_alloca list_t (prefix ^ i') builder in
                     ignore(L.build_store next_node_addr node_addr_ builder);
                     (next_node_addr, i)
-                    (*
-                    (node_addr, i)
-                    *)
                 in
-                (*
-                ignore(make_node (first_node_addr, 0) (List.hd l'));
-                *)
                 let rec traverse_list (node_addr, i) = function
                     hd::tl ->
                         traverse_list (make_node (node_addr, i) hd) tl
