@@ -186,9 +186,12 @@ let check_ast ast =
             check_none "dictionary value" t2;
             check_valid_typ env t1;
             check_valid_typ env t2;
+            let keys = Hashtbl.create (List.length l) in
             let err = "dictionary literal type inconsistency" in
             let check_dict (l', vsym) (e1,e2) =
                 let (e1_typlist, e1', vsym') = check_expr (add_env_vsym env vsym) e1 in
+                if Hashtbl.mem keys e1' then make_err "dictionary keys must be unique"
+                else Hashtable.add key e1' 1;
                 let (e2_typlist, e2', vsym'') = check_expr (add_env_vsym env vsym') e2 in
                 let _ = check_typlist e1_typlist t1 err in
                 let _ = check_typlist e2_typlist t2 err in
