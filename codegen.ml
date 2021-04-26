@@ -31,6 +31,7 @@ let translate env sast =
 
     (* Get types from the context *)
     let i32_t         = L.i32_type    context
+    in let i64_t      = L.i64_type    context
     in let i1_t       = L.i1_type     context
     in let i8_t       = L.i8_type     context
     in let float_t    = L.double_type context
@@ -38,7 +39,20 @@ let translate env sast =
     in let void_t     = L.void_type   context
     in
 
+    (* matches structs in  lib/hash_table.c  *)
+    let ht_entry = L.named_struct_type context "entry_s"
+    in L.struct_set_body ht_entry [|string_t; string_t; L.pointer_type ht_entry|] false;
+    let ht_t = L.named_struct_type context "hashtable_s"
+    in L.struct_set_body ht_t [|i32_t; L.pointer_type (L.pointer_type ht_entry)|] false;
+
+    (* convenient numbers *)
+    let zero = L.const_int i32_t 0 in
+    let one = L.const_int i32_t 1 in
+    let two = L.const_int i32_t 2 in
+
     (* Return the LLVM type for a MicroC type *)
+    let ltyp_to_str ltyp = List.hd (String.split_on_char ' ' (L.string_of_lltype ltyp))
+    in
     let rec typ_to_ltyp = function
           A.Int    -> i32_t
         | A.Bool   -> i1_t
@@ -47,18 +61,29 @@ let translate env sast =
         | A.Null   -> void_t
         | A.List(t)->
             let ltyp = typ_to_ltyp t in
-            let ltyp_s = List.hd (String.split_on_char ' ' (L.string_of_lltype ltyp)) in
+            let ltyp_s = ltyp_to_str ltyp in
             let list_name = "list" ^ ltyp_s in
-            if Hashtbl.mem list_types list_name then (
-                let list_t = Hashtbl.find list_types list_name in
-                list_t
-            ) else (
+            if Hashtbl.mem list_types list_name then
+                Hashtbl.find list_types list_name
+            else (
                 let list_t = L.named_struct_type context list_name in
-                L.struct_set_body list_t [| L.pointer_type ltyp; L.pointer_type list_t |] false;
+                L.struct_set_body list_t [|(L.pointer_type ltyp); (L.pointer_type list_t)|] false;
                 Hashtbl.add list_types list_name list_t;
                 list_t
             )
-
+        | A.Dict(t1,t2) ->
+            let ltyp1 = typ_to_ltyp t1 in
+            let ltyp2 = typ_to_ltyp t2 in
+            let ltyp_s = (ltyp_to_str ltyp1) ^ (ltyp_to_str ltyp2) in
+            let dict_name = "dict" ^ ltyp_s in
+            if Hashtbl.mem dict_types dict_name then
+                Hashtbl.find dict_types dict_name
+            else (
+                let dict_t = L.named_struct_type context dict_name in
+                L.struct_set_body dict_t [|(L.pointer_type ltyp1); (L.pointer_type ltyp2); (L.pointer_type ht_t)|] false;
+                Hashtbl.add dict_types dict_name dict_t;
+                dict_t
+            )
         (*
         | A.UserTyp(ut)  -> let (_, at) = StringMap.find ut env.tsym in ltype_of_typ at
         *)
@@ -78,12 +103,44 @@ let translate env sast =
     let main = L.define_function "main" func_t the_module in
     let builder = L.builder_at_end context (L.entry_block main) in
 
-    (* printf *)
-    let printf_t : L.lltype =
-        L.var_arg_function_type i32_t [| L.pointer_type i8_t |] in
-    let printf_func : L.llvalue =
-        L.declare_function "printf" printf_t the_module in
+    (* start external functions *)
+    let build_func (name, ret, args) =
+        let t = L.var_arg_function_type ret args in
+        let func = L.declare_function name t the_module in
+        func
+    in
+    let build_funcs map (def : string * L.lltype * L.lltype array) =
+        let (name, _, _) = def in
+        StringMap.add name (build_func def) map
+    in
+
+    let printf_func : L.llvalue = build_func ("printf", i32_t, [|string_t|]) in
     let str_format = L.build_global_stringptr "%s\n" "fmt" builder in
+
+    (* hash table functions *)
+    let ht_create  = "ht_create" in
+    let ht_hash    = "ht_hash" in
+    let ht_newpair = "ht_newpair" in
+    let ht_set     = "ht_set" in
+    let ht_get     = "ht_get" in
+    let ht_defs = [
+        (ht_create, (L.pointer_type ht_t), [|i32_t|]);
+        (ht_hash, i32_t, [|(L.pointer_type ht_t); string_t|]);
+        (ht_newpair, (L.pointer_type ht_entry), [|string_t; string_t|]);
+        (ht_set, void_t, [|(L.pointer_type ht_t); string_t; string_t|]);
+        (ht_get, string_t, [|(L.pointer_type ht_t); string_t|]);
+    ] in
+    let ht_funcs = List.fold_left build_funcs StringMap.empty ht_defs in
+    let ht_create_func = StringMap.find ht_create ht_funcs in
+    let ht_hash_func = StringMap.find ht_hash ht_funcs in
+    let ht_newpair_func = StringMap.find ht_newpair ht_funcs in
+    let ht_set_func = StringMap.find ht_set ht_funcs in
+    let ht_get_func = StringMap.find ht_get ht_funcs in
+
+    let prime_func : L.llvalue = build_func ("find_prime", i32_t, [|i32_t|]) in
+    (* end external functions *)
+
+    (* start stdlib functions *)
 
     let rec expr builder = function
         SIntLit(i) -> L.const_int i32_t i
@@ -92,7 +149,7 @@ let translate env sast =
         | SStrLit(s) ->
             let prefix = "s" in
             let len = String.length s + 1 in
-            let addr = L.build_array_alloca i8_t (L.const_int i8_t len) "s" builder in
+            let addr = L.build_array_malloc i8_t (L.const_int i8_t len) "s" builder in
             let store_char i c =
                 let i' = string_of_int i in
                 let c' = Char.code c in
@@ -105,25 +162,23 @@ let translate env sast =
             addr
         | SListLit(t, l) ->
             let list_t = typ_to_ltyp (A.List(t)) in
-            let zero = L.const_int i32_t 0 in
-            let one = L.const_int i32_t 1 in
             let l' = List.map (fun e -> snd e) l in
             let prefix = "l" in
             let data = "d" in
             let add_node i e =
-                let addr = L.build_alloca list_t (prefix ^ string_of_int i) builder in
+                let addr = L.build_malloc list_t (prefix ^ string_of_int i) builder in
                 (addr, e)
             in
             let node_addrs = List.mapi add_node l' in
             let node_addrs_rev = List.rev node_addrs in
-            let null_addr = L.build_alloca list_t (prefix ^ string_of_int (List.length node_addrs)) builder in
+            let null_addr = L.build_malloc list_t (prefix ^ string_of_int (List.length node_addrs)) builder in
             ignore(L.build_store (L.const_null (list_t)) null_addr builder);
             let make_node next_node_addr (node_addr, e) =
                 (* list_t = { void *data; list_t *next; } *)
                 let node_data = expr builder e in
                 let node_data_addr = match t with
                     A.Int | A.Float | A.Bool | A.String  ->
-                        let addr = L.build_alloca (typ_to_ltyp t) "" builder in
+                        let addr = L.build_malloc (typ_to_ltyp t) "" builder in
                         ignore(L.build_store node_data addr builder);
                         addr
                     | A.List(_) | A.Dict(_) | _ ->
@@ -139,15 +194,58 @@ let translate env sast =
             in
             ignore(List.fold_left make_node null_addr node_addrs_rev);
             fst (List.hd node_addrs)
-        | SFunCall("sprint", [sexpr]) ->
-            let e = snd sexpr in
+        | SDictLit(t1, t2, d) ->
+            let dict_t = typ_to_ltyp (A.Dict(t1,t2)) in
+            let ltyp1 = typ_to_ltyp t1 in
+            let ltyp2 = typ_to_ltyp t2 in
+            let addr = L.build_malloc dict_t "dict" builder in
+
+            (* dummy values so we know the actual types of the table *)
+            let null_t1 = L.build_malloc ltyp1 "nullt1" builder in
+            let null_t2 = L.build_malloc ltyp2 "nullt2" builder in
+            let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" builder in
+            let addr_t2 = L.build_in_bounds_gep addr [|zero; one|] "dictt2" builder in
+            ignore(L.build_store (L.const_null ltyp1) null_t1 builder);
+            ignore(L.build_store (L.const_null ltyp2) null_t2 builder);
+            ignore(L.build_store null_t1 addr_t1 builder);
+            ignore(L.build_store null_t2 addr_t2 builder);
+
+            (* create dict *)
+            (* dict size = prime num ~= 1.3 * number of elements *)
+            let dict_len = L.build_call prime_func [|L.const_int i32_t (List.length d)|] "dictlen" builder in
+            let ht =  L.build_call ht_create_func [|dict_len|] "tbl" builder in
+            let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" builder in
+            ignore(L.build_store ht addr_ht builder);
+
+            (* adding all the dict k:v pairs *)
+            let d' = List.map (fun (se1, se2) -> (snd se1, snd se2)) d in
+            let add_pair i (k,v) =
+                (* TODO: create malloc for int/bool/float *)
+                let k = expr builder k in
+                let v = expr builder v in
+                let c_k = L.build_bitcast k string_t ("ck" ^ string_of_int i) builder in
+                let c_v = L.build_bitcast v string_t ("cv" ^ string_of_int i) builder in
+                ignore(L.build_call ht_set_func [|ht;c_k;c_v|] "" builder)
+            in
+            List.iteri add_pair d';
+            addr
+        | SFunCall("dget", [(_, dict); (_,k)]) ->
+            let addr = expr builder dict in
+            let c_k = L.build_bitcast (expr builder k) string_t "ck" builder in
+            let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt1" builder in
+            let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" builder in
+            let ht = L.build_load addr_ht "ht" builder in
+            let ltyp2 = L.type_of (L.build_load addr_t2 "t2" builder) in
+            let c_v = L.build_call ht_get_func [|ht;c_k|] "cv" builder in
+            let v = L.build_bitcast c_v ltyp2 "v" builder in
+            v
+        | SFunCall("sprint", [(_,e)]) ->
             L.build_call printf_func [| str_format; (expr builder e) |] "printf" builder
         | _ -> raise (Failure ("expr" ^ not_impl))
         (*
         *)
         (*
         | SReLit(r) -> L.const_string context r
-        | SDictLit(t1, t2, d) -> ()
         | SFunLit(f) -> ()
         | SNullExpr -> ()
         | SBinop(e1, o, e2) -> ()

@@ -37,7 +37,10 @@ type semantic_env = {
 let check_ast ast =
     let line_num: int ref = ref 1 in
     let make_err err = raise (Failure ("!!!ERROR!!! line " ^ string_of_int !line_num ^ ": " ^ err)) in
-    let built_in_funs_list = [ ("sprint", [(String, "x")], Int); ] in
+    let built_in_funs_list = [
+        ("sprint", [(String, "x")], Int);
+        ("dget", [(Dict(String,String), "d"); (String, "k")], String);
+    ] in
     let built_in_funs =
         let add_built_in map (id, formals, t) =
             StringMap.add id [Fun(formals, t)] map in
@@ -191,7 +194,7 @@ let check_ast ast =
             let check_dict (l', vsym) (e1,e2) =
                 let (e1_typlist, e1', vsym') = check_expr (add_env_vsym env vsym) e1 in
                 if Hashtbl.mem keys e1' then make_err "dictionary keys must be unique"
-                else Hashtable.add key e1' 1;
+                else Hashtbl.add keys e1' 1;
                 let (e2_typlist, e2', vsym'') = check_expr (add_env_vsym env vsym') e2 in
                 let _ = check_typlist e1_typlist t1 err in
                 let _ = check_typlist e2_typlist t2 err in

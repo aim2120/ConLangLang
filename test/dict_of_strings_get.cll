@@ -1,0 +1,1 @@
+sprint(dget(<string,string>{'a':'b', 'c':'d'}, 'a'));
