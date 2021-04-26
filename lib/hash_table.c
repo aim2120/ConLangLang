@@ -43,7 +43,6 @@ hashtable_t *ht_create( int size ) {
     if( size < 1 ) return NULL;
 
      size = find_prime(size * 2);
-     printf("size %d\n",size);
 
     /* Allocate the table itself. */
     if( ( hashtable = malloc( sizeof( hashtable_t ) ) ) == NULL ) {

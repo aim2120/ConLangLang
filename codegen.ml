@@ -20,14 +20,14 @@ module StringMap = Map.Make(String)
 
 (* translate : Sast.program -> Llvm.module *)
 let translate env sast =
-    let list_types = Hashtbl.create 10 in
-    let dict_types = Hashtbl.create 10 in
-    let not_impl = " not implemented" in
-    let context = L.global_context () in
-
     (* Create the LLVM compilation module into which
        we will generate code *)
+    let context = L.global_context () in
     let the_module = L.create_module context "ConLangLang" in
+
+    (* to store different types of lists/dicts *)
+    let list_types = Hashtbl.create 10 in
+    let dict_types = Hashtbl.create 10 in
 
     (* Get types from the context *)
     let i32_t         = L.i32_type    context
@@ -45,10 +45,11 @@ let translate env sast =
     let ht_t = L.named_struct_type context "hashtable_s"
     in L.struct_set_body ht_t [|i32_t; i32_t; L.pointer_type (L.pointer_type ht_entry)|] false;
 
-    (* convenient numbers *)
+    (* convenient numbers/strings *)
     let zero = L.const_int i32_t 0 in
     let one = L.const_int i32_t 1 in
     let two = L.const_int i32_t 2 in
+    let not_impl = " not implemented" in
 
     (* Return the LLVM type for a MicroC type *)
     let ltyp_to_str ltyp = List.hd (String.split_on_char ' ' (L.string_of_lltype ltyp))
@@ -98,7 +99,6 @@ let translate env sast =
 *)
     in
 
-
     (* Creating top-level function *)
     let func_t = L.function_type i32_t [||] in
     let main = L.define_function "main" func_t the_module in
@@ -144,6 +144,9 @@ let translate env sast =
 
     (* start stdlib functions *)
     (* end stdlib functions *)
+
+    (* variable table *)
+    let var_tbl : (string, L.llvalue) Hashtbl.t = Hashtbl.create 10 in
 
     let rec expr builder (e : sx) =
         let make_addr_if_const e t malloc builder =
@@ -243,7 +246,7 @@ let translate env sast =
             in
             List.iteri add_pair d';
             addr
-        | SFunCall("dget", [(typlist, dict); (_,k)]) ->
+        | SFunCall("dget", [(_, dict); (_,k)]) ->
             let addr = expr builder dict in
             let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" builder in
             let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" builder in
@@ -253,11 +256,10 @@ let translate env sast =
             let k_addr = make_addr_if_const (expr builder k) ltyp1 false builder in
             let c_k = L.build_bitcast k_addr string_t "ck" builder in
             let ht = L.build_load addr_ht "ht" builder in
-            ignore(L.build_call ht_print_table_func [|ht|] "" builder);
             let c_v = L.build_call ht_get_func [|ht;c_k|] "cv" builder in
             let v_addr = L.build_bitcast c_v ltyp2 "v" builder in
             v_addr
-        | SFunCall("dset", [(typlist, dict); (_,k); (_,v)]) ->
+        | SFunCall("dset", [(_, dict); (_,k); (_,v)]) ->
             let addr = expr builder dict in
             let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" builder in
             let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" builder in
@@ -272,8 +274,16 @@ let translate env sast =
             let ht' = L.build_call ht_set_func [|ht;c_k;c_v|] "ht_" builder in
             ignore(L.build_store ht' addr_ht builder);
             addr
-        | SFunCall("sprint", [(_,e)]) ->
+        | SFunCall("sprint", [(typlist,e)]) ->
             L.build_call printf_func [| str_format; (expr builder e) |] "printf" builder
+        | SAssign(v, (typlist,e)) ->
+            let t = typ_to_ltyp (List.hd typlist) in
+            let addr = make_addr_if_const (expr builder e) t false builder in
+            Hashtbl.add var_tbl v addr;
+            addr
+        | SId(v) ->
+            let addr = Hashtbl.find var_tbl v in
+            addr
         | _ -> raise (Failure ("expr" ^ not_impl))
         (*
         *)
@@ -285,7 +295,6 @@ let translate env sast =
         | SUnop(o, e) -> ()
         | SChildAcc(e, s) -> ()
         | SCast(t, e) -> ()
-        | SAssign(v, e) -> ()
         | STypDefAssign(t, v, l) -> ()
         | SMatch(m) -> ()
         | SIfElse(i) -> ()
