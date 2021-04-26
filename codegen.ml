@@ -160,9 +160,12 @@ let translate env sast =
         in
 
         match e with
-        SIntLit(i) -> L.const_int i32_t i
-        | SFloatLit(f) -> L.const_float_of_string float_t f
-        | SBoolLit(b) -> L.const_int i1_t (if b then 1 else 0)
+        SIntLit(i) -> let out = L.const_int i32_t i in
+            (builder, out)
+        | SFloatLit(f) -> let out = L.const_float_of_string float_t f in
+            (builder, out)
+        | SBoolLit(b) -> let out = L.const_int i1_t (if b then 1 else 0) in
+            (builder, out)
         | SStrLit(s) ->
             let prefix = "s" in
             let len = String.length s + 1 in
@@ -174,11 +177,7 @@ let translate env sast =
                 ignore(L.build_store (L.const_int i8_t c') addr_i builder);
             in
             String.iteri store_char (s ^ "\x00");
-            (*
-            let addr_end = L.build_in_bounds_gep addr [|L.const_int i8_t (len - 1)|] "null" builder in
-            ignore(L.build_store (L.const_int i8_t 0) addr_end builder);
-            *)
-            addr
+            (builder, addr)
         | SListLit(t, l) ->
             let list_t = typ_to_ltyp (A.List(t)) in
             let l' = List.map (fun e -> snd e) l in
@@ -194,7 +193,7 @@ let translate env sast =
             ignore(L.build_store (L.const_null (list_t)) null_addr builder);
             let make_node next_node_addr (node_addr, e) =
                 (* list_t = { void *data; list_t *next; } *)
-                let node_data = expr builder e in
+                let (builder, node_data) = expr builder e in
                 let node_data_addr = match t with
                     A.Int | A.Float | A.Bool | A.String  ->
                         let addr = L.build_malloc (typ_to_ltyp t) "" builder in
@@ -212,7 +211,7 @@ let translate env sast =
                 node_addr
             in
             ignore(List.fold_left make_node null_addr node_addrs_rev);
-            fst (List.hd node_addrs)
+            (builder, fst (List.hd node_addrs))
         | SDictLit(t1, t2, d) ->
             let dict_t = typ_to_ltyp (A.Dict(t1,t2)) in
             let ltyp1 = typ_to_ltyp t1 in
@@ -237,53 +236,80 @@ let translate env sast =
 
             (* adding all the dict k:v pairs *)
             let d' = List.map (fun (se1, se2) -> (snd se1, snd se2)) d in
-            let add_pair i (k,v) =
-                let k_addr = make_addr_if_const (expr builder k) ltyp1 false builder in
-                let v_addr = make_addr_if_const (expr builder v) ltyp2 false builder in
+            let add_pair (builder, i) (k,v) =
+                let (builder, k') = expr builder k in
+                let (builder, v') = expr builder v in
+                let k_addr = make_addr_if_const k' ltyp1 false builder in
+                let v_addr = make_addr_if_const v' ltyp2 false builder in
                 let c_k = L.build_bitcast k_addr string_t ("ck" ^ string_of_int i) builder in
                 let c_v = L.build_bitcast v_addr string_t ("cv" ^ string_of_int i) builder in
-                ignore(L.build_call ht_set_func [|ht;c_k;c_v|] "" builder)
+                ignore(L.build_call ht_set_func [|ht;c_k;c_v|] "" builder);
+                (builder, i+1)
             in
-            List.iteri add_pair d';
-            addr
+            let (builder, _) = List.fold_left add_pair (builder, 0) d' in
+            (builder, addr)
         | SFunCall("dget", [(_, dict); (_,k)]) ->
-            let addr = expr builder dict in
+            let (builder, addr) = expr builder dict in
             let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" builder in
             let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" builder in
             let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" builder in
             let ltyp1 = L.type_of (L.build_load (L.build_load addr_t1 "t1*" builder) "t1" builder) in
             let ltyp2 = L.type_of (L.build_load (L.build_load addr_t2 "t2*" builder) "t2" builder) in
-            let k_addr = make_addr_if_const (expr builder k) ltyp1 false builder in
+            let (builder, k') = expr builder k in
+            let k_addr = make_addr_if_const k' ltyp1 false builder in
             let c_k = L.build_bitcast k_addr string_t "ck" builder in
             let ht = L.build_load addr_ht "ht" builder in
             let c_v = L.build_call ht_get_func [|ht;c_k|] "cv" builder in
             let v_addr = L.build_bitcast c_v ltyp2 "v" builder in
-            v_addr
+            (builder, v_addr)
         | SFunCall("dset", [(_, dict); (_,k); (_,v)]) ->
-            let addr = expr builder dict in
+            let (builder, addr) = expr builder dict in
             let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" builder in
             let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" builder in
             let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" builder in
             let ltyp1 = L.type_of (L.build_load (L.build_load addr_t1 "t1*" builder) "t1" builder) in
             let ltyp2 = L.type_of (L.build_load (L.build_load addr_t2 "t2*" builder) "t2" builder) in
-            let k_addr = make_addr_if_const (expr builder k) ltyp1 false builder in
-            let v_addr = make_addr_if_const (expr builder v) ltyp2 false builder in
+            let (builder, k') = expr builder k in
+            let (builder, v') = expr builder v in
+            let k_addr = make_addr_if_const k' ltyp1 false builder in
+            let v_addr = make_addr_if_const v' ltyp2 false builder in
             let c_k = L.build_bitcast k_addr string_t "ck" builder in
             let c_v = L.build_bitcast v_addr string_t "cv" builder in
             let ht = L.build_load addr_ht "ht" builder in
             let ht' = L.build_call ht_set_func [|ht;c_k;c_v|] "ht_" builder in
             ignore(L.build_store ht' addr_ht builder);
-            addr
+            (builder, addr)
         | SFunCall("sprint", [(typlist,e)]) ->
-            L.build_call printf_func [| str_format; (expr builder e) |] "printf" builder
+            let (builder, e') = expr builder e in
+            let out = L.build_call printf_func [|str_format;e'|] "printf" builder
+            in
+            (builder, out)
         | SAssign(v, (typlist,e)) ->
             let t = typ_to_ltyp (List.hd typlist) in
-            let addr = make_addr_if_const (expr builder e) t false builder in
+            let (builder, e') = expr builder e in
+            let addr = make_addr_if_const e' t false builder in
             Hashtbl.add var_tbl v addr;
-            addr
+            (builder, addr)
         | SId(v) ->
             let addr = Hashtbl.find var_tbl v in
-            addr
+            (builder, addr)
+        | SIfElse(i) ->
+            let (builder, cond) = expr builder (snd i.sicond) in
+            let merge_bb = L.append_block context "merge" main in
+            let build_br_merge = L.build_br merge_bb in
+            let out_addr = L.build_alloca (typ_to_ltyp i.sityp) "out" builder in
+
+            let then_bb = L.append_block context "then" main in
+            let (if_builder, ifout) = List.fold_left stmt (L.builder_at_end context then_bb, zero) i.sifblock in
+            ignore(L.build_store ifout out_addr if_builder);
+            ignore(build_br_merge if_builder);
+
+            let else_bb = L.append_block context "else" main in
+            let (else_builder, elseout) = List.fold_left stmt (L.builder_at_end context else_bb, zero) i.selseblock in
+            ignore(L.build_store elseout out_addr else_builder);
+            ignore(build_br_merge else_builder);
+            ignore(L.build_cond_br cond then_bb else_bb builder);
+            (L.builder_at_end context merge_bb, out_addr)
         | _ -> raise (Failure ("expr" ^ not_impl))
         (*
         *)
@@ -297,19 +323,16 @@ let translate env sast =
         | SCast(t, e) -> ()
         | STypDefAssign(t, v, l) -> ()
         | SMatch(m) -> ()
-        | SIfElse(i) -> ()
         | SWhile(w) -> ()
-        | SId(v) -> ()
         | SUTDId(v) -> ()
         | SExpr(e) -> ()
                     *)
-    in
-    let rec stmt builder = function
+    and stmt (builder, _) = function
         SExprStmt(e) ->
-            ignore(expr builder (snd e));
-            builder
+            let (builder', out) = expr builder (snd e) in
+            (builder', out)
         | _      -> raise (Failure ("stmt" ^ not_impl))
     in
-    ignore(List.fold_left stmt builder sast);
+    let (builder, _) = List.fold_left stmt (builder, zero) sast in
     ignore(L.build_ret (L.const_int i32_t 0) builder);
     the_module

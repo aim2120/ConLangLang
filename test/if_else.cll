@@ -1,0 +1,7 @@
+if:int (true) {
+    sprint('hello');
+    0;
+} else {
+    sprint('no');
+    0;
+};
