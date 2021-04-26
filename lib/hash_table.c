@@ -65,6 +65,8 @@ int ht_hash( hashtable_t *hashtable, char *key ) {
     unsigned long int hashval = 5381;
     int i = 0;
 
+    printf("key %lu\n", key);
+    printf("len %lu\n", strlen(key));
     /* Convert our string to an integer */
     while( hashval < ULONG_MAX && i < strlen( key ) ) {
         hashval = hashval << 5;
@@ -72,6 +74,7 @@ int ht_hash( hashtable_t *hashtable, char *key ) {
         i++;
     }
 
+    printf("hash %lu\n", hashval);
     return hashval % hashtable->size;
 }
 
@@ -144,6 +147,7 @@ char *ht_get( hashtable_t *hashtable, char *key ) {
     entry_t *pair;
 
     bin = ht_hash( hashtable, key );
+    printf("bin: %d\n", bin);
 
     /* Step through the bin, looking for our value. */
     pair = hashtable->table[ bin ];
@@ -166,7 +170,7 @@ void ht_print_table (hashtable_t *hashtable) {
         entry_t *pair = hashtable->table[i];
         printf("%d ", i);
         if ( pair != NULL) {
-            printf("k %s ", pair->key);
+            printf("k %lu ", pair->key);
             printf("v %s", pair->value);
         }
         printf("\n");

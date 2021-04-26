@@ -66,8 +66,8 @@ let rec string_of_sexpr sexpr =
     SIntLit(i) -> string_of_int i
   | SFloatLit(f) -> f
   | SBoolLit(b) -> if b then "true" else "false"
-  | SStrLit(s) -> "'" ^ String.sub s 1 ((String.length s) - 2)  ^ "'" (* substring removes quotes around string *)
-  | SReLit(r) -> "\"" ^ String.sub r 1 ((String.length r) - 2) ^ "\"" (* substring removes quotes around string *)
+  | SStrLit(s) -> "'" ^ s  ^ "'" (* substring removes quotes around string *)
+  | SReLit(r) -> "\"" ^ r ^ "\"" (* substring removes quotes around string *)
   | SListLit(t, l) -> "<" ^ string_of_typ t ^ ">[" ^ String.concat ", " (List.map string_of_sexpr l) ^ "]"
   | SDictLit(t1, t2, d) -> "<" ^ string_of_typ t1 ^ "," ^ string_of_typ t2 ^ ">" ^ "{" ^
       String.concat "," (List.map (fun p -> string_of_sexpr (fst p) ^ ":" ^ string_of_sexpr (snd p)) d) ^ "}"

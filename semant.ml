@@ -37,14 +37,25 @@ type semantic_env = {
 let check_ast ast =
     let line_num: int ref = ref 1 in
     let make_err err = raise (Failure ("!!!ERROR!!! line " ^ string_of_int !line_num ^ ": " ^ err)) in
-    let built_in_funs_list = [
-        ("sprint", [(String, "x")], Int);
-        ("dget", [(Dict(String,String), "d"); (String, "k")], String);
-    ] in
-    let built_in_funs =
         let add_built_in map (id, formals, t) =
-            StringMap.add id [Fun(formals, t)] map in
-        List.fold_left add_built_in StringMap.empty built_in_funs_list
+        if StringMap.mem id map then
+            let fun_defs = StringMap.find id map in
+            StringMap.add id ((Fun(formals, t))::fun_defs) map
+        else
+            StringMap.add id [Fun(formals, t)] map
+    in
+    let built_in_funs =
+        let l = [
+            ("sprint", [(String, "x")], Int);
+            ("dget", [(Dict(String,String), "d"); (String, "k")], String);
+        ] in
+        List.fold_left add_built_in StringMap.empty l
+    in
+    let add_built_in_dict vsym t1 t2 =
+        let l = [
+            ("dget", [(Dict(t1,t2), "d"); (t1, "k")], t2);
+        ] in
+        List.fold_left add_built_in vsym l
     in
     let empty_env = {
         tvsym=StringMap.empty;
@@ -201,7 +212,8 @@ let check_ast ast =
                 (((e1_typlist, e1'), (e2_typlist, e2'))::l', vsym'')
             in
             let (slist, vsym) = List.fold_left check_dict ([], env.vsym) l in
-            ([Dict(t1,t2)], SDictLit(t1, t2, List.rev slist), vsym)
+            let vsym' = add_built_in_dict vsym t1 t2 in
+            ([Dict(t1,t2)], SDictLit(t1, t2, List.rev slist), vsym')
         | FunLit(f) ->
             check_valid_typ env f.ftyp;
             let check_formal vsym (t, id) =
@@ -302,25 +314,39 @@ let check_ast ast =
             let typlist = find_in_map env.vsym id (id ^ " not defined") in
             (typlist, SUTDId(id), env.vsym)
         | FunCall(id,l) ->
-            let typlist = find_in_map env.vsym id (id ^ " not defined") in
-            (* fun variable has 1 type *)
-            let (formals, typ) = match (List.hd typlist) with
+            let make_actuals (vsym, actuals) a =
+                let (a_typlist, a_e, vsym') = check_expr (add_env_vsym env vsym) a in
+                (vsym', (a_typlist, a_e)::actuals)
+            in
+            let (vsym, actuals) = List.fold_left make_actuals (env.vsym, []) l in
+            let actuals = List.rev actuals in
+            let typlist = find_in_map vsym id (id ^ " not defined") in
+            (* multiple function definitions can exist *)
+            let get_formals_and_ret = function
                 Fun(formals, typ) -> (formals, typ)
                 | _ -> make_err (id ^ " is not a function variable")
             in
-            let rec check_args formals actuals sactuals vsym =
+            let fun_defs = List.map get_formals_and_ret typlist in
+            let rec check_args formals actuals =
                 match formals, actuals with
                 f_hd::f_tl, a_hd::a_tl ->
                     let (f_t, _) = f_hd in
-                    let (a_typlist, a_e, vsym') = check_expr (add_env_vsym env vsym) a_hd in
+                    let (a_typlist, _) = a_hd in
                     let t = check_typlist a_typlist f_t "function argument type doesn't match formal definition" in
                     (* only keep actual argument typ that matches formal definition *)
-                    check_args f_tl a_tl (([t],a_e)::sactuals) vsym'
-                | [], [] -> (sactuals, vsym)
+                    check_args f_tl a_tl
+                | [], [] -> ()
                 | _, _ -> make_err "function arguments incompatible with function definition"
             in
-            let (l', vsym) = check_args formals l [] env.vsym in
-            ([typ], SFunCall(id, List.rev l'), vsym)
+            let rec try_def (formals, typ) fun_defs =
+                try
+                    (check_args formals actuals;
+                    ([typ], SFunCall(id, actuals), vsym))
+                with Failure(e) -> (match fun_defs with
+                    hd::tl -> try_def hd tl
+                    | [] -> make_err e)
+            in
+            try_def (List.hd fun_defs) (List.tl fun_defs) 
         | Match(m) ->
             check_valid_typ env m.mtyp;
             let (input_typlist, input_se, vsym) = check_expr env m.minput in

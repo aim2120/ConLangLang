@@ -109,8 +109,8 @@ let rec string_of_expr = function
     IntLit(i) -> string_of_int i
   | FloatLit(f) -> f
   | BoolLit(b) -> if b then "true" else "false"
-  | StrLit(s) -> "'" ^ String.sub s 1 ((String.length s) - 2)  ^ "'" (* substring removes quotes around string *)
-  | ReLit(r) -> "\"" ^ String.sub r 1 ((String.length r) - 2) ^ "\"" (* substring removes quotes around string *)
+  | StrLit(s) -> "'" ^ s  ^ "'"
+  | ReLit(r) -> "\"" ^ r ^ "\""
   | ListLit(t, l) -> "<" ^ string_of_typ t ^ ">" ^ "[" ^ String.concat ", " (List.map string_of_expr l) ^ "]"
   | DictLit(t1, t2, d) -> "<" ^ string_of_typ t1 ^ "," ^ string_of_typ t2 ^ ">" ^ "{" ^
       String.concat "," (List.map (fun p -> string_of_expr (fst p) ^ ":" ^ string_of_expr (snd p)) d) ^ "}"

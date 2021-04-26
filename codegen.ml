@@ -152,7 +152,7 @@ let translate env sast =
         | SStrLit(s) ->
             let prefix = "s" in
             let len = String.length s + 1 in
-            let addr = L.build_array_malloc i8_t (L.const_int i8_t len) "s" builder in
+            let addr = L.build_array_alloca i8_t (L.const_int i8_t len) "s" builder in
             let store_char i c =
                 let i' = string_of_int i in
                 let c' = Char.code c in
@@ -225,32 +225,50 @@ let translate env sast =
             (* adding all the dict k:v pairs *)
             let d' = List.map (fun (se1, se2) -> (snd se1, snd se2)) d in
             let add_pair i (k,v) =
-                (* TODO: create malloc for int/bool/float *)
-                let k_ll = expr builder k in
-                let v_ll = expr builder v in
-                let c_k = L.build_bitcast k_ll string_t ("ck" ^ string_of_int i) builder in
-                let c_v = L.build_bitcast v_ll string_t ("cv" ^ string_of_int i) builder in
+                let k_addr = (match t1 with
+                    A.Int | A.Float | A.Bool ->
+                        let addr = L.build_malloc ltyp1 "" builder in
+                        ignore(L.build_store (expr builder k) addr builder);
+                        addr
+                    | A.String | A.List(_) | A.Dict(_) | _ ->
+                        expr builder k
+                ) in
+                let v_addr = (match t2 with
+                    A.Int | A.Float | A.Bool ->
+                        let addr = L.build_malloc ltyp2 "" builder in
+                        ignore(L.build_store (expr builder v) addr builder);
+                        addr
+                    | A.String | A.List(_) | A.Dict(_) | _ ->
+                        expr builder v
+                ) in
+                let c_k = L.build_bitcast k_addr string_t ("ck" ^ string_of_int i) builder in
+                let c_v = L.build_bitcast v_addr string_t ("cv" ^ string_of_int i) builder in
                 ignore(L.build_call ht_set_func [|ht;c_k;c_v|] "" builder)
             in
             List.iteri add_pair d';
-            (*
             ignore(L.build_call ht_print_table_func [|ht|] "" builder);
-            *)
             addr
-        | SFunCall("dget", [(_, dict); (_,k)]) ->
+        | SFunCall("dget", [(typlist, dict); (_,k)]) ->
             let addr = expr builder dict in
-            let k_ll = expr builder k in
-            let c_k = L.build_bitcast k_ll string_t "ck" builder in
-            let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt1" builder in
+            let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" builder in
+            let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" builder in
             let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" builder in
+            let ltyp1 = L.type_of (L.build_load (L.build_load addr_t1 "t1*" builder) "t1" builder) in
+            let ltyp2 = L.type_of (L.build_load (L.build_load addr_t2 "t2*" builder) "t2" builder) in
+            let k' = expr builder k in
+            let k_addr = (match (L.classify_value k') with
+                L.ValueKind.Instruction(_) -> k'
+                | _ ->
+                    let addr = L.build_alloca ltyp1 "" builder in
+                    ignore(L.build_store (expr builder k) addr builder);
+                    addr
+            ) in
+            let c_k = L.build_bitcast k_addr string_t "ck" builder in
             let ht = L.build_load addr_ht "ht" builder in
-            (*
             ignore(L.build_call ht_print_table_func [|ht|] "" builder);
-            *)
-            let ltyp2 = L.type_of (L.build_load addr_t2 "t2" builder) in
             let c_v = L.build_call ht_get_func [|ht;c_k|] "cv" builder in
-            let v = L.build_bitcast c_v ltyp2 "v" builder in
-            v
+            let v_addr = L.build_bitcast c_v ltyp2 "v" builder in
+            v_addr
         | SFunCall("sprint", [(_,e)]) ->
             L.build_call printf_func [| str_format; (expr builder e) |] "printf" builder
         | _ -> raise (Failure ("expr" ^ not_impl))
