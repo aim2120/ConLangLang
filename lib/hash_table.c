@@ -58,15 +58,16 @@ hashtable_t *ht_create( int size ) {
     return hashtable;
 }
 
+/* djb2 hash function */
 /* Hash a string for a particular hash table. */
 int ht_hash( hashtable_t *hashtable, char *key ) {
 
-    unsigned long int hashval;
+    unsigned long int hashval = 5381;
     int i = 0;
 
     /* Convert our string to an integer */
     while( hashval < ULONG_MAX && i < strlen( key ) ) {
-        hashval = hashval << 8;
+        hashval = hashval << 5;
         hashval += key[ i ];
         i++;
     }
@@ -119,7 +120,6 @@ void ht_set( hashtable_t *hashtable, char *key, char *value ) {
 
     /* Nope, could't find it.  Time to grow a pair. */
     } else {
-        printf("creating pair %s %s\n", key, value);
         newpair = ht_newpair( key, value );
 
         /* We're at the start of the linked list in this bin. */
@@ -144,16 +144,11 @@ char *ht_get( hashtable_t *hashtable, char *key ) {
     entry_t *pair;
 
     bin = ht_hash( hashtable, key );
-    printf("trying to find %s\n", key);
 
     /* Step through the bin, looking for our value. */
     pair = hashtable->table[ bin ];
-    if (pair != NULL) {
-        printf("key %s val %s\n", pair->key, pair->value);
-    }
-    while( pair != NULL && pair->key != NULL && strcmp( key, pair->key ) > 0 ) {
+    while( pair != NULL && pair->key != NULL && strcmp( key, pair->key ) != 0 ) {
         pair = pair->next;
-        printf("key %s val %s\n", pair->key, pair->value);
     }
 
     /* Did we actually find anything? */
@@ -162,6 +157,19 @@ char *ht_get( hashtable_t *hashtable, char *key ) {
 
     } else {
         return pair->value;
+    }
+}
+
+void ht_print_table (hashtable_t *hashtable) {
+    printf("this is the table\n");
+    for (int i = 0; i < hashtable->size; i++) {
+        entry_t *pair = hashtable->table[i];
+        printf("%d ", i);
+        if ( pair != NULL) {
+            printf("k %s ", pair->key);
+            printf("v %s", pair->value);
+        }
+        printf("\n");
     }
 }
 

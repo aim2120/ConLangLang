@@ -123,12 +123,14 @@ let translate env sast =
     let ht_newpair = "ht_newpair" in
     let ht_set     = "ht_set" in
     let ht_get     = "ht_get" in
+    let ht_print_table = "ht_print_table" in
     let ht_defs = [
         (ht_create, (L.pointer_type ht_t), [|i32_t|]);
         (ht_hash, i32_t, [|(L.pointer_type ht_t); string_t|]);
         (ht_newpair, (L.pointer_type ht_entry), [|string_t; string_t|]);
         (ht_set, void_t, [|(L.pointer_type ht_t); string_t; string_t|]);
         (ht_get, string_t, [|(L.pointer_type ht_t); string_t|]);
+        (ht_print_table, void_t, [|(L.pointer_type ht_t)|]);
     ] in
     let ht_funcs = List.fold_left build_funcs StringMap.empty ht_defs in
     let ht_create_func = StringMap.find ht_create ht_funcs in
@@ -136,6 +138,7 @@ let translate env sast =
     let ht_newpair_func = StringMap.find ht_newpair ht_funcs in
     let ht_set_func = StringMap.find ht_set ht_funcs in
     let ht_get_func = StringMap.find ht_get ht_funcs in
+    let ht_print_table_func = StringMap.find ht_print_table ht_funcs in
 
     let prime_func : L.llvalue = build_func ("find_prime", i32_t, [|i32_t|]) in
     (* end external functions *)
@@ -156,9 +159,11 @@ let translate env sast =
                 let addr_i = L.build_in_bounds_gep addr [|L.const_int i8_t i|] (prefix ^ i') builder in
                 ignore(L.build_store (L.const_int i8_t c') addr_i builder);
             in
-            String.iteri store_char s;
-            let addr_end = L.build_in_bounds_gep addr [|L.const_int i8_t (len - 1)|] "end" builder in
+            String.iteri store_char (s ^ "\x00");
+            (*
+            let addr_end = L.build_in_bounds_gep addr [|L.const_int i8_t (len - 1)|] "null" builder in
             ignore(L.build_store (L.const_int i8_t 0) addr_end builder);
+            *)
             addr
         | SListLit(t, l) ->
             let list_t = typ_to_ltyp (A.List(t)) in
@@ -221,20 +226,27 @@ let translate env sast =
             let d' = List.map (fun (se1, se2) -> (snd se1, snd se2)) d in
             let add_pair i (k,v) =
                 (* TODO: create malloc for int/bool/float *)
-                let k = expr builder k in
-                let v = expr builder v in
-                let c_k = L.build_bitcast k string_t ("ck" ^ string_of_int i) builder in
-                let c_v = L.build_bitcast v string_t ("cv" ^ string_of_int i) builder in
+                let k_ll = expr builder k in
+                let v_ll = expr builder v in
+                let c_k = L.build_bitcast k_ll string_t ("ck" ^ string_of_int i) builder in
+                let c_v = L.build_bitcast v_ll string_t ("cv" ^ string_of_int i) builder in
                 ignore(L.build_call ht_set_func [|ht;c_k;c_v|] "" builder)
             in
             List.iteri add_pair d';
+            (*
+            ignore(L.build_call ht_print_table_func [|ht|] "" builder);
+            *)
             addr
         | SFunCall("dget", [(_, dict); (_,k)]) ->
             let addr = expr builder dict in
-            let c_k = L.build_bitcast (expr builder k) string_t "ck" builder in
+            let k_ll = expr builder k in
+            let c_k = L.build_bitcast k_ll string_t "ck" builder in
             let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt1" builder in
             let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" builder in
             let ht = L.build_load addr_ht "ht" builder in
+            (*
+            ignore(L.build_call ht_print_table_func [|ht|] "" builder);
+            *)
             let ltyp2 = L.type_of (L.build_load addr_t2 "t2" builder) in
             let c_v = L.build_call ht_get_func [|ht;c_k|] "cv" builder in
             let v = L.build_bitcast c_v ltyp2 "v" builder in
