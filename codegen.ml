@@ -246,7 +246,6 @@ let translate env sast =
                 ignore(L.build_call ht_set_func [|ht;c_k;c_v|] "" builder)
             in
             List.iteri add_pair d';
-            ignore(L.build_call ht_print_table_func [|ht|] "" builder);
             addr
         | SFunCall("dget", [(typlist, dict); (_,k)]) ->
             let addr = expr builder dict in
@@ -265,7 +264,6 @@ let translate env sast =
             ) in
             let c_k = L.build_bitcast k_addr string_t "ck" builder in
             let ht = L.build_load addr_ht "ht" builder in
-            ignore(L.build_call ht_print_table_func [|ht|] "" builder);
             let c_v = L.build_call ht_get_func [|ht;c_k|] "cv" builder in
             let v_addr = L.build_bitcast c_v ltyp2 "v" builder in
             v_addr
