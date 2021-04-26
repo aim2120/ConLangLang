@@ -308,7 +308,28 @@ let translate env sast =
             let (else_builder, elseout) = List.fold_left stmt (L.builder_at_end context else_bb, zero) i.selseblock in
             ignore(L.build_store elseout out_addr else_builder);
             ignore(build_br_merge else_builder);
+
             ignore(L.build_cond_br cond then_bb else_bb builder);
+            let builder = L.builder_at_end context merge_bb in
+            let out = L.build_load out_addr "out_val" builder in
+            (builder, out)
+        | SWhile(w) ->
+            let ltyp = typ_to_ltyp w.swtyp in
+            let out_addr = L.build_alloca ltyp "out" builder in
+            (* null value if while doesn't run *)
+            ignore(L.build_store (L.const_null ltyp) out_addr builder);
+
+            let cond_bb = L.append_block context "while" main in
+            ignore(L.build_br cond_bb builder);
+            let (cond_builder, cond) = expr (L.builder_at_end context cond_bb) (snd w.swcond) in
+
+            let body_bb = L.append_block context "while_body" main in
+            let (body_builder, body_out) = List.fold_left stmt (L.builder_at_end context body_bb, zero) w.swblock in
+            ignore(L.build_store body_out out_addr body_builder);
+            ignore(L.build_br cond_bb body_builder);
+
+            let merge_bb = L.append_block context "merge" main in
+            ignore(L.build_cond_br cond body_bb merge_bb cond_builder);
             let builder = L.builder_at_end context merge_bb in
             let out = L.build_load out_addr "out_val" builder in
             (builder, out)
@@ -325,7 +346,6 @@ let translate env sast =
         | SCast(t, e) -> ()
         | STypDefAssign(t, v, l) -> ()
         | SMatch(m) -> ()
-        | SWhile(w) -> ()
         | SUTDId(v) -> ()
         | SExpr(e) -> ()
                     *)

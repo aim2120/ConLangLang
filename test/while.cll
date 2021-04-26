@@ -1,0 +1,4 @@
+while:int (true) {
+    sprint('hello');
+    0;
+};
