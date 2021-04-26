@@ -191,7 +191,7 @@ let translate env sast =
             let node_addrs_rev = List.rev node_addrs in
             let null_addr = L.build_malloc list_t (prefix ^ string_of_int (List.length node_addrs)) builder in
             ignore(L.build_store (L.const_null (list_t)) null_addr builder);
-            let make_node next_node_addr (node_addr, e) =
+            let make_node (builder, next_node_addr) (node_addr, e) =
                 (* list_t = { void *data; list_t *next; } *)
                 let (builder, node_data) = expr builder e in
                 let node_data_addr = match t with
@@ -208,9 +208,9 @@ let translate env sast =
                 (* node -> next *)
                 let node_next_gep = L.build_in_bounds_gep node_addr [| zero; one |] "" builder in
                 ignore(L.build_store next_node_addr node_next_gep builder);
-                node_addr
+                (builder, node_addr)
             in
-            ignore(List.fold_left make_node null_addr node_addrs_rev);
+            let (builder, _) = List.fold_left make_node (builder, null_addr) node_addrs_rev in
             (builder, fst (List.hd node_addrs))
         | SDictLit(t1, t2, d) ->
             let dict_t = typ_to_ltyp (A.Dict(t1,t2)) in
@@ -309,7 +309,9 @@ let translate env sast =
             ignore(L.build_store elseout out_addr else_builder);
             ignore(build_br_merge else_builder);
             ignore(L.build_cond_br cond then_bb else_bb builder);
-            (L.builder_at_end context merge_bb, out_addr)
+            let builder = L.builder_at_end context merge_bb in
+            let out = L.build_load out_addr "out_val" builder in
+            (builder, out)
         | _ -> raise (Failure ("expr" ^ not_impl))
         (*
         *)

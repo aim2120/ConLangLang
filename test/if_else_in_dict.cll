@@ -1,0 +1,14 @@
+d = <int,string>{
+    0: if:string (true) {
+        'hello';
+    } else {
+        'no';
+    },
+    1: if:string (false) {
+        'no';
+    } else {
+        'world';
+    }
+};
+sprint(dget(d, 0));
+sprint(dget(d, 1));
