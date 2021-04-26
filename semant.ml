@@ -48,14 +48,14 @@ let check_ast ast =
         let l = [
             ("sprint", [(String, "x")], Int);
             ("dget", [(Dict(String,String), "d"); (String, "k")], String);
-            ("dset", [(Dict(String,String), "d"); (String, "k"); (String, "v")], Null);
+            ("dset", [(Dict(String,String), "d"); (String, "k"); (String, "v")], Dict(String,String));
         ] in
         List.fold_left add_built_in StringMap.empty l
     in
     let add_built_in_dict vsym t1 t2 =
         let l = [
             ("dget", [(Dict(t1,t2), "d"); (t1, "k")], t2);
-            ("dset", [(Dict(t1,t2), "d"); (t1, "k"); (t2, "v")], Null);
+            ("dset", [(Dict(t1,t2), "d"); (t1, "k"); (t2, "v")], Dict(t1,t2));
         ] in
         List.fold_left add_built_in vsym l
     in
