@@ -1,0 +1,7 @@
+d = <int, dict<string,string>>{
+    0: <string,string>{'a':'a'},
+    1: <string,string>{'b':'b'},
+    2: <string,string>{'c':'c'}
+};
+d_0 = dget(d,0);
+dget(d_0,'a');

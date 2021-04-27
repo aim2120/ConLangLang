@@ -1,1 +1,1 @@
-<string>['hello','world'];
+sprint(lget(<string>['hello','world'], 1));

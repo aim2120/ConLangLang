@@ -37,20 +37,30 @@ type semantic_env = {
 let check_ast ast =
     let line_num: int ref = ref 1 in
     let make_err err = raise (Failure ("!!!ERROR!!! line " ^ string_of_int !line_num ^ ": " ^ err)) in
-        let add_built_in map (id, formals, t) =
+    let add_built_in map (id, formals, t) =
+        let new_f = Fun(formals, t) in
         if StringMap.mem id map then
+            let already_exists f = (f = new_f) in
             let fun_defs = StringMap.find id map in
-            StringMap.add id ((Fun(formals, t))::fun_defs) map
+            if List.exists already_exists fun_defs then map
+            else StringMap.add id (new_f::fun_defs) map
         else
-            StringMap.add id [Fun(formals, t)] map
+            StringMap.add id [new_f] map
     in
     let built_in_funs =
         let l = [
             ("sprint", [(String, "x")], Int);
+            ("lget", [(List(String), "l"); (Int, "n")], String);
             ("dget", [(Dict(String,String), "d"); (String, "k")], String);
             ("dset", [(Dict(String,String), "d"); (String, "k"); (String, "v")], Dict(String,String));
         ] in
         List.fold_left add_built_in StringMap.empty l
+    in
+    let add_built_in_list vsym t =
+        let l = [
+            ("lget", [(List(t), "l"); (Int, "n")], t);
+        ] in
+        List.fold_left add_built_in vsym l
     in
     let add_built_in_dict vsym t1 t2 =
         let l = [
@@ -196,7 +206,8 @@ let check_ast ast =
                 ((e_typlist, se)::l, vsym')
             in
             let (slist, vsym) = List.fold_left check_list ([], env.vsym) l in 
-            ([List(t)], SListLit(t,(List.rev slist)), vsym)
+            let vsym' = add_built_in_list vsym t in
+            ([List(t)], SListLit(t,(List.rev slist)), vsym')
         | DictLit(t1,t2,l) ->
             check_none "dictionary key" t1;
             check_none "dictionary value" t2;

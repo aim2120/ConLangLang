@@ -1,2 +1,0 @@
-<string,string>{'a':'b','c':'d'};
-sprint('hello');
