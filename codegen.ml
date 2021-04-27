@@ -116,7 +116,11 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         StringMap.add name (build_func def) map
     in
 
+    (* string stuff *)
     let printf_func : L.llvalue = build_func ("printf", i32_t, [|string_t|]) in
+    let strcpy_func : L.llvalue = build_func ("strcpy", string_t, [|string_t; string_t|]) in
+    let strcat_func : L.llvalue = build_func ("strcat", string_t, [|string_t; string_t|]) in
+    let strlen_func : L.llvalue = build_func ("strlen", i64_t, [|string_t;|]) in
     let str_format = L.build_global_stringptr "%s\n" "fmt" builder in
 
     (* hash table functions *)
@@ -259,7 +263,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, e1') = expr builder e1 in
             let (builder, e2') = expr builder e2 in
             let err = "internal error" in
-            let partial = (match t with
+            let out = (match t with
                 A.Int -> (match o with
                       A.Add     -> L.build_add
                     | A.Sub     -> L.build_sub
@@ -270,7 +274,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     | A.Greater -> L.build_icmp L.Icmp.Sgt
                     | A.Less    -> L.build_icmp L.Icmp.Slt
                     | _ -> raise (Failure err)
-                ) e1' e2'
+                ) e1' e2' "out" builder
                 | A.Float -> (match o with
                       A.Add     -> L.build_fadd
                     | A.Sub     -> L.build_fsub
@@ -281,26 +285,32 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     | A.Greater -> L.build_fcmp L.Fcmp.Ogt
                     | A.Less    -> L.build_fcmp L.Fcmp.Olt
                     | _ -> raise (Failure err)
-                ) e1' e2'
+                ) e1' e2' "out" builder
                 | A.Bool -> (match o with
                       A.And -> L.build_and
                     | A.Or  -> L.build_or
                     | _ -> raise (Failure err)
-                ) e1' e2'
-                (*
-                | String -> (match o with
-                    Concat ->
+                ) e1' e2' "out" builder
+                | A.String -> (match o with
+                    A.Concat ->
+                        let len1 = L.build_call strlen_func [|e1'|] "e1len" builder in
+                        let len2 = L.build_call strlen_func [|e2'|] "e2len" builder in
+                        let len = L.build_add len1 len2 "len" builder in
+                        let out_addr = L.build_array_alloca i8_t len "out" builder in
+                        let out_addr = L.build_call strcpy_func [|out_addr; e1'|] "cpy" builder in
+                        let out_addr = L.build_call strcat_func [|out_addr; e2'|] "cat" builder in
+                        out_addr
                     | _ -> raise (Failure err)
                 )
-                | List -> (match o with
-                    Concat ->
+                (*
+                | A.List -> (match o with
+                    A.Concat ->
                     | _ -> raise (Failure err)
                 )
                 *)
                 | _ -> raise (Failure err)
             )
             in
-            let out = partial "out" builder in
             (builder, out)
         | SFunCall("dget", [(_, dict); (_,k)]) ->
             let (builder, addr) = expr builder dict in

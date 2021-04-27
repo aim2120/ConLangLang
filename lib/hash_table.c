@@ -40,7 +40,7 @@ hashtable_t *ht_create( int size ) {
     hashtable_t *hashtable = NULL;
     int i;
 
-    if( size < 1 ) return NULL;
+    if( size < 1 ) size = 1;
 
      size = find_prime(size * 2);
 
