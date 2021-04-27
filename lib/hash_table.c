@@ -212,7 +212,7 @@ char *ht_get( hashtable_t *hashtable, char *key ) {
     }
 }
 
-void ht_print_table (hashtable_t *hashtable) {
+void ht_print (hashtable_t *hashtable) {
     printf("this is the table\n");
     for (int i = 0; i < hashtable->size; i++) {
         entry_t *pair = hashtable->table[i];

@@ -10,7 +10,6 @@ struct ll_node_s {
 typedef struct ll_node_s ll_node;
 
 ll_node *ll_create(char *data) {
-    printf("begin create\n");
     ll_node *new_node;
 
     if ((new_node = malloc(sizeof (ll_node))) == NULL) {
@@ -21,7 +20,6 @@ ll_node *ll_create(char *data) {
     }
 
     new_node->next = NULL;
-    printf("made node %lu\n", (unsigned long)data);
     return new_node;
 }
 
@@ -61,7 +59,7 @@ char *ll_get(ll_node *head, int n) {
     return curr->data;
 }
 
-void ll_print_list(ll_node *head) {
+void ll_print(ll_node *head) {
     ll_node *curr = head;
     while(curr != NULL) {
         if (curr->data != NULL) {
@@ -78,9 +76,9 @@ int main() {
     ll_node *head = ll_create("a");
     ll_push(head, "b");
     ll_push(head, "c");
-    ll_print_list(head);
+    ll_print(head);
     ll_pop(head);
-    ll_print_list(head);
+    ll_print(head);
 
     return 0;
 }

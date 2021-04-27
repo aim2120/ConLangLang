@@ -138,21 +138,24 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let str_format = L.build_global_stringptr "%s\n" "fmt" builder in
 
     (* linked list functions *)
-    let ll_create = "ll_create" in
-    let ll_push   = "ll_push" in
-    let ll_pop    = "ll_pop" in
-    let ll_get    = "ll_get" in
+    let ll_create     = "ll_create" in
+    let ll_push       = "ll_push" in
+    let ll_pop        = "ll_pop" in
+    let ll_get        = "ll_get" in
+    let ll_print = "ll_print" in
     let ll_defs = [
         (ll_create, (L.pointer_type ll_node), [|string_t|]);
         (ll_push, (L.pointer_type ll_node), [|L.pointer_type ll_node; string_t|]);
         (ll_pop, (L.pointer_type ll_node), [|L.pointer_type ll_node|]);
         (ll_get, (string_t), [|L.pointer_type ll_node; i32_t|]);
+        (ll_print, void_t [|L.pointer_type ll_node|]);
     ] in
     let ll_funcs = List.fold_left build_funcs StringMap.empty ll_defs in
     let ll_create_func = StringMap.find ll_create ll_funcs in
     let ll_push_func = StringMap.find ll_push ll_funcs in
     let ll_pop_func = StringMap.find ll_pop ll_funcs in
     let ll_get_func = StringMap.find ll_get ll_funcs in
+    let ll_print_func = StringMap.find ll_print ll_funcs in
 
     (* hash table functions *)
     let ht_create      = "ht_create" in
@@ -160,14 +163,14 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ht_newpair     = "ht_newpair" in
     let ht_set         = "ht_set" in
     let ht_get         = "ht_get" in
-    let ht_print_table = "ht_print_table" in
+    let ht_print = "ht_print" in
     let ht_defs = [
         (ht_create, (L.pointer_type ht_t), [|i32_t|]);
         (ht_hash, i32_t, [|(L.pointer_type ht_t); string_t|]);
         (ht_newpair, (L.pointer_type ht_entry), [|string_t; string_t|]);
         (ht_get, string_t, [|(L.pointer_type ht_t); string_t|]);
         (ht_set, (L.pointer_type ht_t), [|(L.pointer_type ht_t); string_t; string_t|]);
-        (ht_print_table, void_t, [|(L.pointer_type ht_t)|]);
+        (ht_print, void_t, [|(L.pointer_type ht_t)|]);
     ] in
     let ht_funcs = List.fold_left build_funcs StringMap.empty ht_defs in
     let ht_create_func = StringMap.find ht_create ht_funcs in
@@ -175,7 +178,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ht_newpair_func = StringMap.find ht_newpair ht_funcs in
     let ht_set_func = StringMap.find ht_set ht_funcs in
     let ht_get_func = StringMap.find ht_get ht_funcs in
-    let ht_print_table_func = StringMap.find ht_print_table ht_funcs in
+    let ht_print_func = StringMap.find ht_print ht_funcs in
     (* end external functions *)
 
     (* start stdlib functions *)
@@ -378,7 +381,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let k_addr = make_addr_if_const k' ltyp1 false builder in
             let c_k = L.build_bitcast k_addr string_t "ck" builder in
             let ht = L.build_load addr_ht "ht" builder in
-            ignore(L.build_call ht_print_table_func [|ht|] "" builder);
+            ignore(L.build_call ht_print_func [|ht|] "" builder);
             let c_v = L.build_call ht_get_func [|ht;c_k|] "cv" builder in
             let v_addr = L.build_bitcast c_v (L.type_of ltyp2_ptr) "v" builder in
             (builder, v_addr)
