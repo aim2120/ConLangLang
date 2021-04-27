@@ -14,12 +14,13 @@ http://llvm.moe/ocaml/
 
 module L = Llvm
 module A = Ast
+open Semant
 open Sast
 
 module StringMap = Map.Make(String)
 
 (* translate : Sast.program -> Llvm.module *)
-let translate env sast =
+let translate (env : semantic_env) (sast : sstmt list)  =
     (* Create the LLVM compilation module into which
        we will generate code *)
     let context = L.global_context () in
@@ -248,6 +249,59 @@ let translate env sast =
             in
             let (builder, _) = List.fold_left add_pair (builder, 0) d' in
             (builder, addr)
+        | SBinop((typlist,e1), o, (_,e2)) ->
+            let t =
+                let t = List.hd typlist in
+                (match t with
+                    A.UserTyp(ut) -> snd (StringMap.find ut env.tsym)
+                    | _ -> t)
+            in
+            let (builder, e1') = expr builder e1 in
+            let (builder, e2') = expr builder e2 in
+            let err = "internal error" in
+            let partial = (match t with
+                A.Int -> (match o with
+                      A.Add     -> L.build_add
+                    | A.Sub     -> L.build_sub
+                    | A.Mult    -> L.build_mul
+                    | A.Div     -> L.build_sdiv
+                    | A.Mod     -> L.build_srem
+                    | A.Equal   -> L.build_icmp L.Icmp.Eq
+                    | A.Greater -> L.build_icmp L.Icmp.Sgt
+                    | A.Less    -> L.build_icmp L.Icmp.Slt
+                    | _ -> raise (Failure err)
+                ) e1' e2'
+                | A.Float -> (match o with
+                      A.Add     -> L.build_fadd
+                    | A.Sub     -> L.build_fsub
+                    | A.Mult    -> L.build_fmul
+                    | A.Div     -> L.build_fdiv
+                    | A.Mod     -> L.build_frem
+                    | A.Equal   -> L.build_fcmp L.Fcmp.Oeq
+                    | A.Greater -> L.build_fcmp L.Fcmp.Ogt
+                    | A.Less    -> L.build_fcmp L.Fcmp.Olt
+                    | _ -> raise (Failure err)
+                ) e1' e2'
+                | A.Bool -> (match o with
+                      A.And -> L.build_and
+                    | A.Or  -> L.build_or
+                    | _ -> raise (Failure err)
+                ) e1' e2'
+                (*
+                | String -> (match o with
+                    Concat ->
+                    | _ -> raise (Failure err)
+                )
+                | List -> (match o with
+                    Concat ->
+                    | _ -> raise (Failure err)
+                )
+                *)
+                | _ -> raise (Failure err)
+            )
+            in
+            let out = partial "out" builder in
+            (builder, out)
         | SFunCall("dget", [(_, dict); (_,k)]) ->
             let (builder, addr) = expr builder dict in
             let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" builder in
@@ -340,7 +394,6 @@ let translate env sast =
         | SReLit(r) -> L.const_string context r
         | SFunLit(f) -> ()
         | SNullExpr -> ()
-        | SBinop(e1, o, e2) -> ()
         | SUnop(o, e) -> ()
         | SChildAcc(e, s) -> ()
         | SCast(t, e) -> ()
