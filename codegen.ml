@@ -40,6 +40,10 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     in let void_t     = L.void_type   context
     in
 
+    (* matches struct in lib/linked_list.c *)
+    let ll_node = L.named_struct_type context "ll_node" in
+    L.struct_set_body ll_node [|string_t; L.pointer_type ll_node|] false;
+
     (* matches structs in  lib/hash_table.c  *)
     let ht_entry = L.named_struct_type context "entry_s"
     in L.struct_set_body ht_entry [|string_t; string_t; L.pointer_type ht_entry|] false;
@@ -122,6 +126,20 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let strcat_func : L.llvalue = build_func ("strcat", string_t, [|string_t; string_t|]) in
     let strlen_func : L.llvalue = build_func ("strlen", i64_t, [|string_t;|]) in
     let str_format = L.build_global_stringptr "%s\n" "fmt" builder in
+
+    (* linked list functions *)
+    let ll_create = "ll_create" in
+    let ll_push   = "ll_push" in
+    let ll_pop    = "ll_pop" in
+    let ll_defs = [
+        (ll_create, (L.pointer_type ll_node), [|string_t|]);
+        (ll_push, (L.pointer_type ll_node), [|L.pointer_type ll_node; string_t|]);
+        (ll_pop, (L.pointer_type ll_node), [|L.pointer_type ll_node|]);
+    ] in
+    let ll_funcs = List.fold_left build_funcs StringMap.empty ll_defs in
+    let ll_create_func = StringMap.find ll_create ll_funcs in
+    let ll_push_func = StringMap.find ll_push ll_funcs in
+    let ll_pop_func = StringMap.find ll_pop ll_funcs in
 
     (* hash table functions *)
     let ht_create  = "ht_create" in
