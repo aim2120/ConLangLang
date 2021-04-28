@@ -1,8 +1,16 @@
 a = 3 + 5;
+sprint(tostring(a));
 a = 3 - 5;
+sprint(tostring(a));
 a = 3 * 5;
+sprint(tostring(a));
 a = 3 / 5;
+sprint(tostring(a));
 a = 3 % 5;
+sprint(tostring(a));
 a = 3 == 5;
+sprint(tostring(a));
 a = 3 >> 5;
+sprint(tostring(a));
 a = 3 << 5;
+sprint(tostring(a));

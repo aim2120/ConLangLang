@@ -1,2 +1,4 @@
 a = 'a';
-sprint(dget(<string,string>{a:'b', 'c':'d', 'e':'f'}, a));
+d = <string,string>{a:'b', 'c':'d', 'e':'f'};
+d = dset(d, a,'changed');
+sprint(dget(d, a));
