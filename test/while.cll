@@ -1,4 +1,7 @@
-while:int (true) {
+d = <int,int>{ 0:0 };
+while:int (dget(d, 0) << 5) {
+    x = dget(d, 0);
+    dset(d, 0, x+1);
     sprint('hello');
-    0;
+    x;
 };
