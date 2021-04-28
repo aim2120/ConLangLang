@@ -29,6 +29,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     (* to store different types of lists/dicts *)
     let list_types = Hashtbl.create 10 in
     let dict_types = Hashtbl.create 10 in
+    let fun_name_i = ref 0 in
 
     (* Get types from the context *)
     let i32_t         = L.i32_type    context
@@ -120,32 +121,34 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let builder = L.builder_at_end context (L.entry_block main) in
 
     (* start external functions *)
-    let build_func (name, ret, args) =
-        let t = L.var_arg_function_type ret args in
+    let build_func (name, ret, args) variable =
+        let t = if variable then L.var_arg_function_type ret args
+        else L.function_type ret args
+        in
         let func = L.declare_function name t the_module in
         func
     in
     let build_funcs map (def : string * L.lltype * L.lltype array) =
         let (name, _, _) = def in
-        StringMap.add name (build_func def) map
+        StringMap.add name (build_func def false) map
     in
 
     (* string stuff *)
-    let printf_func   : L.llvalue = build_func ("printf", i32_t, [|string_t|]) in
-    let snprintf_func : L.llvalue = build_func ("snprintf", i32_t, [|string_t; i32_t; string_t|]) in
-    let strcpy_func   : L.llvalue = build_func ("strcpy", string_t, [|string_t; string_t|]) in
-    let strcat_func   : L.llvalue = build_func ("strcat", string_t, [|string_t; string_t|]) in
-    let strlen_func   : L.llvalue = build_func ("strlen", i64_t, [|string_t;|]) in
+    let printf_func   : L.llvalue = build_func ("printf", i32_t, [|string_t|]) true in
+    let snprintf_func : L.llvalue = build_func ("snprintf", i32_t, [|string_t; i32_t; string_t|]) true in
+    let strcpy_func   : L.llvalue = build_func ("strcpy", string_t, [|string_t; string_t|]) false in
+    let strcat_func   : L.llvalue = build_func ("strcat", string_t, [|string_t; string_t|]) false in
+    let strlen_func   : L.llvalue = build_func ("strlen", i64_t, [|string_t;|]) false in
     let str_format = L.build_global_stringptr "%s\n" "fmt" builder in
     let i32_format = L.build_global_stringptr "%d" "fmt" builder in
     let float_format = L.build_global_stringptr "%f" "fmt" builder in
 
     (* linked list functions *)
-    let ll_create     = "ll_create" in
-    let ll_push       = "ll_push" in
-    let ll_pop        = "ll_pop" in
-    let ll_get        = "ll_get" in
-    let ll_print = "ll_print" in
+    let ll_create = "ll_create" in
+    let ll_push   = "ll_push" in
+    let ll_pop    = "ll_pop" in
+    let ll_get    = "ll_get" in
+    let ll_print  = "ll_print" in
     let ll_defs = [
         (ll_create, (L.pointer_type ll_node), [|string_t|]);
         (ll_push, (L.pointer_type ll_node), [|L.pointer_type ll_node; string_t|]);
@@ -161,12 +164,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ll_print_func = StringMap.find ll_print ll_funcs in
 
     (* hash table functions *)
-    let ht_create      = "ht_create" in
-    let ht_hash        = "ht_hash" in
-    let ht_newpair     = "ht_newpair" in
-    let ht_set         = "ht_set" in
-    let ht_get         = "ht_get" in
-    let ht_print = "ht_print" in
+    let ht_create  = "ht_create" in
+    let ht_hash    = "ht_hash" in
+    let ht_newpair = "ht_newpair" in
+    let ht_set     = "ht_set" in
+    let ht_get     = "ht_get" in
+    let ht_print   = "ht_print" in
     let ht_defs = [
         (ht_create, (L.pointer_type ht_t), [|i32_t|]);
         (ht_hash, i32_t, [|(L.pointer_type ht_t); string_t|]);
@@ -449,16 +452,17 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             (builder, e')
         | SIfElse(i) ->
             let (builder, cond) = expr builder (snd i.sicond) in
-            let merge_bb = L.append_block context "merge" main in
+            let parent_func = L.block_parent (L.instr_parent cond) in
+            let merge_bb = L.append_block context "merge" parent_func in
             let build_br_merge = L.build_br merge_bb in
             let out_addr = L.build_alloca (typ_to_ltyp i.sityp) "out" builder in
 
-            let then_bb = L.append_block context "then" main in
+            let then_bb = L.append_block context "then" parent_func in
             let (if_builder, ifout) = List.fold_left stmt (L.builder_at_end context then_bb, zero) i.sifblock in
             ignore(L.build_store ifout out_addr if_builder);
             ignore(build_br_merge if_builder);
 
-            let else_bb = L.append_block context "else" main in
+            let else_bb = L.append_block context "else" parent_func in
             let (else_builder, elseout) = List.fold_left stmt (L.builder_at_end context else_bb, zero) i.selseblock in
             ignore(L.build_store elseout out_addr else_builder);
             ignore(build_br_merge else_builder);
@@ -470,29 +474,40 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         | SWhile(w) ->
             let ltyp = typ_to_ltyp w.swtyp in
             let out_addr = L.build_alloca ltyp "out" builder in
+            let parent_func = L.block_parent (L.instr_parent out_addr) in
             (* null value if while doesn't run *)
             ignore(L.build_store (L.const_null ltyp) out_addr builder);
 
-            let cond_bb = L.append_block context "while" main in
+            let cond_bb = L.append_block context "while" parent_func in
             ignore(L.build_br cond_bb builder);
             let (cond_builder, cond) = expr (L.builder_at_end context cond_bb) (snd w.swcond) in
 
-            let body_bb = L.append_block context "while_body" main in
+            let body_bb = L.append_block context "while_body" parent_func in
             let (body_builder, body_out) = List.fold_left stmt (L.builder_at_end context body_bb, zero) w.swblock in
             ignore(L.build_store body_out out_addr body_builder);
             ignore(L.build_br cond_bb body_builder);
 
-            let merge_bb = L.append_block context "merge" main in
+            let merge_bb = L.append_block context "merge" parent_func in
             ignore(L.build_cond_br cond body_bb merge_bb cond_builder);
             let builder = L.builder_at_end context merge_bb in
             let out = L.build_load out_addr "out_val" builder in
             (builder, out)
+        | SFunLit(f) ->
+            let f_name = "fun" ^ (string_of_int !fun_name_i) in
+            let fun_name_i = !fun_name_i + 1 in
+            let ltyp = typ_to_ltyp f.sftyp in
+            let formals_list = List.map (fun (t,_) -> typ_to_ltyp t) f.sformals in
+            let formals_arr = Array.of_list formals_list in
+            let func = build_func (f_name, ltyp, formals_arr) false in
+            let function_builder = L.builder_at_end context (L.entry_block func) in
+            let (function_builder, function_out) = List.fold_left stmt (function_builder, zero) f.sfblock in
+            ignore(L.build_ret function_out function_builder);
+            (builder, func)
         | _ -> raise (Failure ("expr" ^ not_impl))
         (*
         *)
         (*
         | SReLit(r) -> L.const_string context r
-        | SFunLit(f) -> ()
         | SNullExpr -> ()
         | SUnop(o, e) -> ()
         | SChildAcc(e, s) -> ()
