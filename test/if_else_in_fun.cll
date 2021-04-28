@@ -1,0 +1,8 @@
+f = <:int>{
+    if:int (true) {
+        1;
+    } else {
+        0;
+    };
+};
+sprint(tostring(f()));

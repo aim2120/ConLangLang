@@ -1,5 +1,7 @@
-d = <:int> {
+y = 'hello';
+f = <string x:int> {
+    y;
     0;
 };
-x = d();
-sprint(tostring(x));
+
+sprint(y);

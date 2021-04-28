@@ -116,8 +116,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     in
 
     (* Creating top-level function *)
-    let func_t = L.function_type i32_t [||] in
-    let main = L.define_function "main" func_t the_module in
+    let main_t = L.function_type i32_t [||] in
+    let main = L.define_function "main" main_t the_module in
     let builder = L.builder_at_end context (L.entry_block main) in
 
     (* start external functions *)
@@ -190,10 +190,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     (* start stdlib functions *)
     (* end stdlib functions *)
 
-    (* variable table *)
+    (* variable name -> value table *)
     let var_tbl : (string, L.llvalue) Hashtbl.t = Hashtbl.create 10 in
+    (* func name -> locals table *)
+    let func_locals_tbl : (string, (string * L.llvalue) list) Hashtbl.t = Hashtbl.create 10 in
 
-    let rec expr builder (e : sx) =
+    let rec expr parent_func builder (e : sx) =
         let make_addr (e : L.llvalue) (t : L.lltype) (malloc : bool) (builder : L.llbuilder) =
             let addr = if malloc then L.build_malloc t "" builder else L.build_alloca t "" builder
             in
@@ -251,7 +253,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let first = List.hd l' in
             let the_rest = List.tl l' in
 
-            let (builder, first') = expr builder first in
+            let (builder, first') = expr parent_func builder first in
             let data = make_addr first' ltyp true builder in
             let c_data = L.build_bitcast data string_t "cdata0" builder in
             let first_node = L.build_call ll_create_func [|c_data|] "node0" builder in
@@ -259,7 +261,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
             let add_node (builder, last_node, i) e =
                 let i' = string_of_int i in
-                let (builder, e') = expr builder e in
+                let (builder, e') = expr parent_func builder e in
                 let data = make_addr e' ltyp true builder in
                 let c_data = L.build_bitcast data string_t ("cdata" ^ i') builder in
                 let addr = L.build_call ll_push_func [|last_node; c_data|] ("node" ^ i') builder in
@@ -293,8 +295,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let d' = List.map (fun (se1, se2) -> (snd se1, snd se2)) d in
             let add_pair (builder, i) (k,v) =
                 let i' = string_of_int i in
-                let (builder, k') = expr builder k in
-                let (builder, v') = expr builder v in
+                let (builder, k') = expr parent_func builder k in
+                let (builder, v') = expr parent_func builder v in
                 let k_data = make_addr k' ltyp1 true builder in
                 let v_data = make_addr v' ltyp2 true builder in
                 let c_k_data = L.build_bitcast k_data string_t ("ckdata" ^ i') builder in
@@ -311,8 +313,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     A.UserTyp(ut) -> snd (StringMap.find ut env.tsym)
                     | _ -> t)
             in
-            let (builder, e1') = expr builder e1 in
-            let (builder, e2') = expr builder e2 in
+            let (builder, e1') = expr parent_func builder e1 in
+            let (builder, e2') = expr parent_func builder e2 in
             let err = "internal error" in
             let out = (match t with
                 A.Int -> (match o with
@@ -364,20 +366,20 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             in
             (builder, out)
         | SFunCall("lget", [(_, l); (_,n)]) ->
-            let (builder, addr) = expr builder l in
+            let (builder, addr) = expr parent_func builder l in
             let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" builder in
             let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" builder in
             let ltyp_ptr = L.build_load addr_t "t*" builder in
             let ltyp = L.type_of (L.build_load ltyp_ptr "t" builder) in
 
             let head_node = L.build_load addr_head "headnode" builder in
-            let (builder, n') = expr builder n in
+            let (builder, n') = expr parent_func builder n in
             let c_data = L.build_call ll_get_func [|head_node;n'|] "cdata" builder in
             let data = L.build_bitcast c_data (L.type_of ltyp_ptr) "data" builder in
             let data_load = L.build_load data "dataload" builder in
             (builder, data_load)
         | SFunCall("dget", [(_, dict); (_,k)]) ->
-            let (builder, addr) = expr builder dict in
+            let (builder, addr) = expr parent_func builder dict in
             let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" builder in
             let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" builder in
             let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" builder in
@@ -385,7 +387,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let ltyp2_ptr = L.build_load addr_t2 "t2*" builder in
             let ltyp1 = L.type_of (L.build_load ltyp1_ptr "t1" builder) in
             let ltyp2 = L.type_of (L.build_load ltyp2_ptr "t2" builder) in
-            let (builder, k') = expr builder k in
+            let (builder, k') = expr parent_func builder k in
             let k_data = make_addr k' ltyp1 false builder in
             let c_k_data = L.build_bitcast k_data string_t "ckdata" builder in
             let ht = L.build_load addr_ht "ht" builder in
@@ -394,14 +396,14 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let v_data_load = L.build_load v_data "vdataload" builder in
             (builder, v_data_load)
         | SFunCall("dset", [(_, dict); (_,k); (_,v)]) ->
-            let (builder, addr) = expr builder dict in
+            let (builder, addr) = expr parent_func builder dict in
             let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" builder in
             let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" builder in
             let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" builder in
             let ltyp1 = L.type_of (L.build_load (L.build_load addr_t1 "t1*" builder) "t1" builder) in
             let ltyp2 = L.type_of (L.build_load (L.build_load addr_t2 "t2*" builder) "t2" builder) in
-            let (builder, k') = expr builder k in
-            let (builder, v') = expr builder v in
+            let (builder, k') = expr parent_func builder k in
+            let (builder, v') = expr parent_func builder v in
             let k_data = make_addr k' ltyp1 false builder in
             let v_data = make_addr v' ltyp2 false builder in
             let c_k_data = L.build_bitcast k_data string_t "ckdata" builder in
@@ -411,23 +413,23 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ignore(L.build_store ht' addr_ht builder);
             (builder, addr)
         | SFunCall("sprint", [(typlist,e)]) ->
-            let (builder, e') = expr builder e in
+            let (builder, e') = expr parent_func builder e in
             let out = L.build_call printf_func [|str_format;e'|] "printf" builder in
             (builder, out)
         | SFunCall("lprint", [(_,e)]) ->
-            let (builder, addr) = expr builder e in
+            let (builder, addr) = expr parent_func builder e in
             let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" builder in
             let head_node = L.build_load addr_head "headnode" builder in
             let out = L.build_call ll_print_func [|head_node|] "printlist" builder in
             (builder, out)
         | SFunCall("dprint", [(_,e)]) ->
-            let (builder, addr) = expr builder e in
+            let (builder, addr) = expr parent_func builder e in
             let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" builder in
             let ht = L.build_load addr_ht "ht" builder in
             let out = L.build_call ht_print_func [|ht|] "printdict" builder in
             (builder, out)
         | SFunCall("tostring", [(_,e)]) ->
-            let (builder, e') = expr builder e in
+            let (builder, e') = expr parent_func builder e in
             let to_string fmt =
                 let len = L.build_call snprintf_func [|L.const_null string_t;zero;fmt;e'|] "" builder
                 in
@@ -444,26 +446,35 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             in
             (builder, str)
         | SAssign(v, (_,e)) ->
-            let (builder, e') = expr builder e in
+            let (builder, e') = expr parent_func builder e in
             Hashtbl.add var_tbl v e';
             (builder, e')
         | SId(v) ->
-            let e' = Hashtbl.find var_tbl v in
+            let func = L.value_name parent_func in
+            let e' = try Hashtbl.find var_tbl v
+                with Not_found -> (
+                    try
+                        let locals = Hashtbl.find func_locals_tbl v in
+                        let (_, out) = List.find (fun (n,_) -> n = v) locals in
+                        out
+                    with Not_found ->
+                    (raise (Failure ("ID NOT FOUND: " ^ v)))
+                )
+            in
             (builder, e')
         | SIfElse(i) ->
-            let (builder, cond) = expr builder (snd i.sicond) in
-            let parent_func = L.block_parent (L.instr_parent cond) in
+            let (builder, cond) = expr parent_func builder (snd i.sicond) in
             let merge_bb = L.append_block context "merge" parent_func in
             let build_br_merge = L.build_br merge_bb in
             let out_addr = L.build_alloca (typ_to_ltyp i.sityp) "out" builder in
 
             let then_bb = L.append_block context "then" parent_func in
-            let (if_builder, ifout) = List.fold_left stmt (L.builder_at_end context then_bb, zero) i.sifblock in
+            let (_, if_builder, ifout) = List.fold_left stmt (parent_func, L.builder_at_end context then_bb, zero) i.sifblock in
             ignore(L.build_store ifout out_addr if_builder);
             ignore(build_br_merge if_builder);
 
             let else_bb = L.append_block context "else" parent_func in
-            let (else_builder, elseout) = List.fold_left stmt (L.builder_at_end context else_bb, zero) i.selseblock in
+            let (_, else_builder, elseout) = List.fold_left stmt (parent_func, L.builder_at_end context else_bb, zero) i.selseblock in
             ignore(L.build_store elseout out_addr else_builder);
             ignore(build_br_merge else_builder);
 
@@ -474,16 +485,15 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         | SWhile(w) ->
             let ltyp = typ_to_ltyp w.swtyp in
             let out_addr = L.build_alloca ltyp "out" builder in
-            let parent_func = L.block_parent (L.instr_parent out_addr) in
             (* null value if while doesn't run *)
             ignore(L.build_store (L.const_null ltyp) out_addr builder);
 
             let cond_bb = L.append_block context "while" parent_func in
             ignore(L.build_br cond_bb builder);
-            let (cond_builder, cond) = expr (L.builder_at_end context cond_bb) (snd w.swcond) in
+            let (cond_builder, cond) = expr parent_func (L.builder_at_end context cond_bb) (snd w.swcond) in
 
             let body_bb = L.append_block context "while_body" parent_func in
-            let (body_builder, body_out) = List.fold_left stmt (L.builder_at_end context body_bb, zero) w.swblock in
+            let (_, body_builder, body_out) = List.fold_left stmt (parent_func, L.builder_at_end context body_bb, zero) w.swblock in
             ignore(L.build_store body_out out_addr body_builder);
             ignore(L.build_br cond_bb body_builder);
 
@@ -493,22 +503,40 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let out = L.build_load out_addr "out_val" builder in
             (builder, out)
         | SFunLit(f) ->
-            (*
-             * TODO: WHY DOES THIS SEGFAULT
-             *)
             let f_name = "fun" ^ (string_of_int !fun_name_i) in
             let fun_name_i = !fun_name_i + 1 in
             let ltyp = typ_to_ltyp f.sftyp in
-            let formals_list = List.map (fun (t,_) -> typ_to_ltyp t) f.sformals in
-            let formals_arr = Array.of_list formals_list in
+            let formals_arr = Array.of_list (List.map (fun (t,_) -> typ_to_ltyp t) f.sformals) in
             let func_typ = L.function_type ltyp formals_arr in
             let func = L.define_function f_name func_typ the_module in
+
             let function_builder = L.builder_at_end context (L.entry_block func) in
-            let (function_builder, function_out) = List.fold_left stmt (function_builder, zero) f.sfblock in
+
+            let params = Array.to_list (L.params func) in
+            let make_param func_locals p (t,n) =
+                L.set_value_name n p;
+                let addr = L.build_alloca (typ_to_ltyp t) "" builder in
+                (n, addr)::func_locals
+            in
+            let func_locals = List.fold_left2 make_param [] params f.sformals in
+            Hashtbl.add func_locals_tbl f_name func_locals;
+
+            let (_, function_builder, function_out) = List.fold_left stmt (func, function_builder, zero) f.sfblock in
             ignore(L.build_ret function_out function_builder);
             (builder, func)
         | SFunCall(v, l) ->
-            let out = L.build_call (Hashtbl.find var_tbl v) [||] "funcall" builder in
+            (* TODO: make calling funlit w/o variable name *)
+            (* let (builder, func) = expr parent_func builder f *)
+            let func = try Hashtbl.find var_tbl v
+                with Not_found -> raise (Failure "FUNC NOT FOUND")
+            in
+            let make_actuals (builder, actuals) (_, e) =
+                let (builder, e') = expr parent_func builder e in
+                (builder, e'::actuals)
+            in
+            let (builder, actuals) = List.fold_left make_actuals (builder, []) l in
+            let actuals_arr = Array.of_list (List.rev actuals) in
+            let out = L.build_call func actuals_arr "funcall" builder in
             (builder, out)
         | _ -> raise (Failure ("expr" ^ not_impl))
         (*
@@ -524,12 +552,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         | SUTDId(v) -> ()
         | SExpr(e) -> ()
                     *)
-    and stmt (builder, _) = function
+    and stmt (func, builder, _) = function
         SExprStmt(e) ->
-            let (builder', out) = expr builder (snd e) in
-            (builder', out)
+            let (builder', out) = expr func builder (snd e) in
+            (func, builder', out)
         | _      -> raise (Failure ("stmt" ^ not_impl))
     in
-    let (builder, _) = List.fold_left stmt (builder, zero) sast in
+    let (_, builder, _) = List.fold_left stmt (main, builder, zero) sast in
     ignore(L.build_ret (L.const_int i32_t 0) builder);
     the_module
