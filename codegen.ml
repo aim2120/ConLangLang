@@ -451,16 +451,18 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             (builder, e')
         | SId(v) ->
             let func = L.value_name parent_func in
-            let e' = try Hashtbl.find var_tbl v
+            let e' = try
+                    let locals = Hashtbl.find func_locals_tbl func in
+                    let (_, out) = List.find (fun (n,_) -> n = v) locals in
+                    L.build_load out "local" builder
                 with Not_found -> (
                     try
-                        let locals = Hashtbl.find func_locals_tbl func in
-                        let (_, out) = List.find (fun (n,_) -> n = v) locals in
-                        L.build_load out "local" builder
+                        Hashtbl.find var_tbl v
                     with Not_found ->
                     (
                         let print_tbl k v =
                             print_string("KEY: " ^ k);
+                            print_endline("");
                             print_string("VALUES: ");
                             List.iter (fun (s,l) -> print_string(s ^ " " ^ (L.string_of_llvalue l) ^ ";")) v;
                             print_endline("");
@@ -525,6 +527,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let make_param func_locals p (t,n) =
                 L.set_value_name n p;
                 let addr = L.build_alloca (typ_to_ltyp t) "" function_builder in
+                ignore(L.build_store p addr function_builder);
                 (n, addr)::func_locals
             in
             let func_locals = List.fold_left2 make_param [] params f.sformals in

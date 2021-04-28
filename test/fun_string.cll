@@ -1,0 +1,5 @@
+f = <string x:int>{
+    sprint(x);
+};
+h = 'hello';
+f(h);
