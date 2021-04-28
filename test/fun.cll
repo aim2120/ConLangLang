@@ -1,3 +1,5 @@
-<:int> {
+d = <:int> {
     0;
 };
+x = d();
+sprint(tostring(x));

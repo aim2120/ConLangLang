@@ -121,8 +121,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let builder = L.builder_at_end context (L.entry_block main) in
 
     (* start external functions *)
-    let build_func (name, ret, args) variable =
-        let t = if variable then L.var_arg_function_type ret args
+    let build_func (name, ret, args) var_arg =
+        let t = if var_arg then L.var_arg_function_type ret args
         else L.function_type ret args
         in
         let func = L.declare_function name t the_module in
@@ -493,16 +493,23 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let out = L.build_load out_addr "out_val" builder in
             (builder, out)
         | SFunLit(f) ->
+            (*
+             * TODO: WHY DOES THIS SEGFAULT
+             *)
             let f_name = "fun" ^ (string_of_int !fun_name_i) in
             let fun_name_i = !fun_name_i + 1 in
             let ltyp = typ_to_ltyp f.sftyp in
             let formals_list = List.map (fun (t,_) -> typ_to_ltyp t) f.sformals in
             let formals_arr = Array.of_list formals_list in
-            let func = build_func (f_name, ltyp, formals_arr) false in
+            let func_typ = L.function_type ltyp formals_arr in
+            let func = L.define_function f_name func_typ the_module in
             let function_builder = L.builder_at_end context (L.entry_block func) in
             let (function_builder, function_out) = List.fold_left stmt (function_builder, zero) f.sfblock in
             ignore(L.build_ret function_out function_builder);
             (builder, func)
+        | SFunCall(v, l) ->
+            let out = L.build_call (Hashtbl.find var_tbl v) [||] "funcall" builder in
+            (builder, out)
         | _ -> raise (Failure ("expr" ^ not_impl))
         (*
         *)
