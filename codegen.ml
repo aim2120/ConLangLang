@@ -442,7 +442,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let str = if t = i1_t then to_string i32_format
                 else if t = i32_t then to_string i32_format
                 else if t = float_t then to_string float_format
-                else raise (Failure not_impl)
+                else raise (Failure ((L.string_of_lltype t) ^ not_impl))
             in
             (builder, str)
         | SAssign(v, (_,e)) ->
@@ -456,7 +456,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     try
                         let locals = Hashtbl.find func_locals_tbl func in
                         let (_, out) = List.find (fun (n,_) -> n = v) locals in
-                        out
+                        L.build_load out "local" builder
                     with Not_found ->
                     (
                         let print_tbl k v =

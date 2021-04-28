@@ -1,6 +1,6 @@
-y = 'hello';
-f = <string x:int> {
-    sprint(x);
+y = 100;
+f = <int x:int> {
+    sprint(tostring(x));
     0;
 };
 f(y);
