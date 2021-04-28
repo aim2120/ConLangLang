@@ -1,1 +1,2 @@
-sprint(dget(<string,string>{'a':'b', 'c':'d', 'e':'f'}, 'a'));
+a = 'a';
+sprint(dget(<string,string>{a:'b', 'c':'d', 'e':'f'}, a));

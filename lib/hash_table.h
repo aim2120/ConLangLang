@@ -10,4 +10,4 @@ int ht_hash( hashtable_t *, char * );
 entry_t *ht_newpair( char *, char * );
 hashtable_t *ht_set( hashtable_t *, char *, char * );
 char *ht_get( hashtable_t *, char * );
-void ht_print ( hashtable_t * );
+int ht_print ( hashtable_t * );

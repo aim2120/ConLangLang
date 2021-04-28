@@ -50,6 +50,11 @@ let check_ast ast =
     let built_in_funs =
         let l = [
             ("sprint", [(String, "x")], Int);
+            ("lprint", [(List(String), "l")], Int);
+            ("dprint", [(Dict(String,String), "d")], Int);
+            ("tostring", [(Int, "x")], String);
+            ("tostring", [(Bool, "x")], String);
+            ("tostring", [(Float, "x")], String);
             ("lget", [(List(String), "l"); (Int, "n")], String);
             ("dget", [(Dict(String,String), "d"); (String, "k")], String);
             ("dset", [(Dict(String,String), "d"); (String, "k"); (String, "v")], Dict(String,String));
@@ -58,12 +63,14 @@ let check_ast ast =
     in
     let add_built_in_list vsym t =
         let l = [
+            ("lprint", [(List(t), "l")], Int);
             ("lget", [(List(t), "l"); (Int, "n")], t);
         ] in
         List.fold_left add_built_in vsym l
     in
     let add_built_in_dict vsym t1 t2 =
         let l = [
+            ("dprint", [(Dict(t1,t2), "d")], Int);
             ("dget", [(Dict(t1,t2), "d"); (t1, "k")], t2);
             ("dset", [(Dict(t1,t2), "d"); (t1, "k"); (t2, "v")], Dict(t1,t2));
         ] in

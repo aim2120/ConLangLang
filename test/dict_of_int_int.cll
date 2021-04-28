@@ -1,2 +1,5 @@
 d = <int,int>{0:0,1:1,2:2,3:3};
-dget(d,3);
+x = dget(d,1);
+sprint(tostring(x));
+sprint('hello');
+sprint(tostring(dget(d,2)));

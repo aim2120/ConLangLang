@@ -59,15 +59,18 @@ char *ll_get(ll_node *head, int n) {
     return curr->data;
 }
 
-void ll_print(ll_node *head) {
+int ll_print(ll_node *head) {
+    int i = 0;
     ll_node *curr = head;
     while(curr != NULL) {
         if (curr->data != NULL) {
             printf("%lu ",(unsigned long)curr->data);
+            i++;
         }
         curr = curr->next;
     }
     printf("\n");
+    return i;
 }
 
 /*

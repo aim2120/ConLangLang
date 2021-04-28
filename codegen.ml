@@ -74,14 +74,14 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let ltyp = typ_to_ltyp t in
             let ltyp_s = ltyp_to_str ltyp in
             let list_name = "list" ^ ltyp_s in
-            if Hashtbl.mem list_types list_name then
+            L.pointer_type (if Hashtbl.mem list_types list_name then
                 Hashtbl.find list_types list_name
             else (
                 let list_t = L.named_struct_type context list_name in
                 L.struct_set_body list_t [|(L.pointer_type ltyp); (L.pointer_type ll_node)|] false;
                 Hashtbl.add list_types list_name list_t;
                 list_t
-            )
+            ))
         | A.Dict(t1,t2) ->
             (*
              * struct dict { t1 *dummy; t2 *dummy; ht_t *table; }
@@ -92,14 +92,14 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let ltyp2 = typ_to_ltyp t2 in
             let ltyp_s = (ltyp_to_str ltyp1) ^ (ltyp_to_str ltyp2) in
             let dict_name = "dict" ^ ltyp_s in
-            if Hashtbl.mem dict_types dict_name then
+            L.pointer_type (if Hashtbl.mem dict_types dict_name then
                 Hashtbl.find dict_types dict_name
             else (
                 let dict_t = L.named_struct_type context dict_name in
                 L.struct_set_body dict_t [|(L.pointer_type ltyp1); (L.pointer_type ltyp2); (L.pointer_type ht_t)|] false;
                 Hashtbl.add dict_types dict_name dict_t;
                 dict_t
-            )
+            ))
         (*
         | A.UserTyp(ut)  -> let (_, at) = StringMap.find ut env.tsym in ltype_of_typ at
         *)
@@ -131,11 +131,14 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     in
 
     (* string stuff *)
-    let printf_func : L.llvalue = build_func ("printf", i32_t, [|string_t|]) in
-    let strcpy_func : L.llvalue = build_func ("strcpy", string_t, [|string_t; string_t|]) in
-    let strcat_func : L.llvalue = build_func ("strcat", string_t, [|string_t; string_t|]) in
-    let strlen_func : L.llvalue = build_func ("strlen", i64_t, [|string_t;|]) in
+    let printf_func   : L.llvalue = build_func ("printf", i32_t, [|string_t|]) in
+    let snprintf_func : L.llvalue = build_func ("snprintf", i32_t, [|string_t; i32_t; string_t|]) in
+    let strcpy_func   : L.llvalue = build_func ("strcpy", string_t, [|string_t; string_t|]) in
+    let strcat_func   : L.llvalue = build_func ("strcat", string_t, [|string_t; string_t|]) in
+    let strlen_func   : L.llvalue = build_func ("strlen", i64_t, [|string_t;|]) in
     let str_format = L.build_global_stringptr "%s\n" "fmt" builder in
+    let i32_format = L.build_global_stringptr "%d" "fmt" builder in
+    let float_format = L.build_global_stringptr "%f" "fmt" builder in
 
     (* linked list functions *)
     let ll_create     = "ll_create" in
@@ -148,7 +151,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         (ll_push, (L.pointer_type ll_node), [|L.pointer_type ll_node; string_t|]);
         (ll_pop, (L.pointer_type ll_node), [|L.pointer_type ll_node|]);
         (ll_get, (string_t), [|L.pointer_type ll_node; i32_t|]);
-        (ll_print, void_t [|L.pointer_type ll_node|]);
+        (ll_print, i32_t, [|L.pointer_type ll_node|]);
     ] in
     let ll_funcs = List.fold_left build_funcs StringMap.empty ll_defs in
     let ll_create_func = StringMap.find ll_create ll_funcs in
@@ -170,7 +173,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         (ht_newpair, (L.pointer_type ht_entry), [|string_t; string_t|]);
         (ht_get, string_t, [|(L.pointer_type ht_t); string_t|]);
         (ht_set, (L.pointer_type ht_t), [|(L.pointer_type ht_t); string_t; string_t|]);
-        (ht_print, void_t, [|(L.pointer_type ht_t)|]);
+        (ht_print, i32_t, [|(L.pointer_type ht_t)|]);
     ] in
     let ht_funcs = List.fold_left build_funcs StringMap.empty ht_defs in
     let ht_create_func = StringMap.find ht_create ht_funcs in
@@ -188,7 +191,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let var_tbl : (string, L.llvalue) Hashtbl.t = Hashtbl.create 10 in
 
     let rec expr builder (e : sx) =
-        let make_addr_if_const e t malloc builder =
+        let make_addr (e : L.llvalue) (t : L.lltype) (malloc : bool) (builder : L.llbuilder) =
+            let addr = if malloc then L.build_malloc t "" builder else L.build_alloca t "" builder
+            in
+            ignore(L.build_store e addr builder);
+            addr
+            (*
             match (L.classify_value e) with
                 L.ValueKind.Instruction(_) -> e
                 | _ ->
@@ -196,6 +204,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     in
                     ignore(L.build_store e addr builder);
                     addr
+                    *)
         in
         let load_if_complex e t builder =
             match t with
@@ -224,7 +233,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             String.iteri store_char (s ^ "\x00");
             (builder, addr)
         | SListLit(t, l) ->
-            let list_t = typ_to_ltyp (A.List(t)) in
+            let list_t = L.element_type (typ_to_ltyp (A.List(t))) in
             let ltyp = typ_to_ltyp t in
 
             let addr = L.build_malloc list_t "list" builder in
@@ -240,9 +249,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let the_rest = List.tl l' in
 
             let (builder, first') = expr builder first in
-            let first' = load_if_complex first' t builder in
-            let data = L.build_malloc ltyp "data0" builder in
-            ignore(L.build_store first' data builder);
+            let data = make_addr first' ltyp true builder in
             let c_data = L.build_bitcast data string_t "cdata0" builder in
             let first_node = L.build_call ll_create_func [|c_data|] "node0" builder in
             ignore(L.build_store first_node addr_head builder);
@@ -250,9 +257,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let add_node (builder, last_node, i) e =
                 let i' = string_of_int i in
                 let (builder, e') = expr builder e in
-                let e' = load_if_complex e' t builder in
-                let data = L.build_malloc ltyp ("data" ^ i') builder in
-                ignore(L.build_store e' data builder);
+                let data = make_addr e' ltyp true builder in
                 let c_data = L.build_bitcast data string_t ("cdata" ^ i') builder in
                 let addr = L.build_call ll_push_func [|last_node; c_data|] ("node" ^ i') builder in
                 (builder, addr, i+1)
@@ -260,7 +265,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, _, _) = List.fold_left add_node (builder, first_node, 1) the_rest in
             (builder, addr)
         | SDictLit(t1, t2, d) ->
-            let dict_t = typ_to_ltyp (A.Dict(t1,t2)) in
+            let dict_t = L.element_type (typ_to_ltyp (A.Dict(t1,t2))) in
             let ltyp1 = typ_to_ltyp t1 in
             let ltyp2 = typ_to_ltyp t2 in
             let addr = L.build_malloc dict_t "dict" builder in
@@ -287,11 +292,11 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 let i' = string_of_int i in
                 let (builder, k') = expr builder k in
                 let (builder, v') = expr builder v in
-                let k_addr = make_addr_if_const k' ltyp1 false builder in
-                let v_addr = make_addr_if_const v' ltyp2 false builder in
-                let c_k = L.build_bitcast k_addr string_t ("ck" ^ i') builder in
-                let c_v = L.build_bitcast v_addr string_t ("cv" ^ i') builder in
-                ignore(L.build_call ht_set_func [|ht;c_k;c_v|] "" builder);
+                let k_data = make_addr k' ltyp1 true builder in
+                let v_data = make_addr v' ltyp2 true builder in
+                let c_k_data = L.build_bitcast k_data string_t ("ckdata" ^ i') builder in
+                let c_v_data = L.build_bitcast v_data string_t ("cvdata" ^ i') builder in
+                ignore(L.build_call ht_set_func [|ht;c_k_data;c_v_data|] "" builder);
                 (builder, i+1)
             in
             let (builder, _) = List.fold_left add_pair (builder, 0) d' in
@@ -366,7 +371,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, n') = expr builder n in
             let c_data = L.build_call ll_get_func [|head_node;n'|] "cdata" builder in
             let data = L.build_bitcast c_data (L.type_of ltyp_ptr) "data" builder in
-            let data_load = L.build_load data "data_load" builder in
+            let data_load = L.build_load data "dataload" builder in
             (builder, data_load)
         | SFunCall("dget", [(_, dict); (_,k)]) ->
             let (builder, addr) = expr builder dict in
@@ -378,13 +383,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let ltyp1 = L.type_of (L.build_load ltyp1_ptr "t1" builder) in
             let ltyp2 = L.type_of (L.build_load ltyp2_ptr "t2" builder) in
             let (builder, k') = expr builder k in
-            let k_addr = make_addr_if_const k' ltyp1 false builder in
-            let c_k = L.build_bitcast k_addr string_t "ck" builder in
+            let k_data = make_addr k' ltyp1 false builder in
+            let c_k_data = L.build_bitcast k_data string_t "ckdata" builder in
             let ht = L.build_load addr_ht "ht" builder in
-            ignore(L.build_call ht_print_func [|ht|] "" builder);
-            let c_v = L.build_call ht_get_func [|ht;c_k|] "cv" builder in
-            let v_addr = L.build_bitcast c_v (L.type_of ltyp2_ptr) "v" builder in
-            (builder, v_addr)
+            let c_v_data = L.build_call ht_get_func [|ht;c_k_data|] "cvdata" builder in
+            let v_data = L.build_bitcast c_v_data (L.type_of ltyp2_ptr) "vdata" builder in
+            let v_data_load = L.build_load v_data "vdataload" builder in
+            (builder, v_data_load)
         | SFunCall("dset", [(_, dict); (_,k); (_,v)]) ->
             let (builder, addr) = expr builder dict in
             let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" builder in
@@ -394,28 +399,54 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let ltyp2 = L.type_of (L.build_load (L.build_load addr_t2 "t2*" builder) "t2" builder) in
             let (builder, k') = expr builder k in
             let (builder, v') = expr builder v in
-            let k_addr = make_addr_if_const k' ltyp1 false builder in
-            let v_addr = make_addr_if_const v' ltyp2 false builder in
-            let c_k = L.build_bitcast k_addr string_t "ck" builder in
-            let c_v = L.build_bitcast v_addr string_t "cv" builder in
+            let k_data = make_addr k' ltyp1 false builder in
+            let v_data = make_addr v' ltyp2 false builder in
+            let c_k_data = L.build_bitcast k_data string_t "ckdata" builder in
+            let c_v_data = L.build_bitcast v_data string_t "cvdata" builder in
             let ht = L.build_load addr_ht "ht" builder in
-            let ht' = L.build_call ht_set_func [|ht;c_k;c_v|] "ht_" builder in
+            let ht' = L.build_call ht_set_func [|ht;c_k_data;c_v_data|] "ht_" builder in
             ignore(L.build_store ht' addr_ht builder);
             (builder, addr)
         | SFunCall("sprint", [(typlist,e)]) ->
             let (builder, e') = expr builder e in
-            let out = L.build_call printf_func [|str_format;e'|] "printf" builder
-            in
+            let out = L.build_call printf_func [|str_format;e'|] "printf" builder in
             (builder, out)
-        | SAssign(v, (typlist,e)) ->
-            let t = typ_to_ltyp (List.hd typlist) in
+        | SFunCall("lprint", [(_,e)]) ->
+            let (builder, addr) = expr builder e in
+            let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" builder in
+            let head_node = L.build_load addr_head "headnode" builder in
+            let out = L.build_call ll_print_func [|head_node|] "printlist" builder in
+            (builder, out)
+        | SFunCall("dprint", [(_,e)]) ->
+            let (builder, addr) = expr builder e in
+            let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" builder in
+            let ht = L.build_load addr_ht "ht" builder in
+            let out = L.build_call ht_print_func [|ht|] "printdict" builder in
+            (builder, out)
+        | SFunCall("tostring", [(_,e)]) ->
             let (builder, e') = expr builder e in
-            let addr = make_addr_if_const e' t false builder in
-            Hashtbl.add var_tbl v addr;
-            (builder, addr)
+            let to_string fmt =
+                let len = L.build_call snprintf_func [|L.const_null string_t;zero;fmt;e'|] "" builder
+                in
+                let len = L.build_add len one "" builder in
+                let addr = L.build_array_alloca i8_t len "tempstr" builder in
+                ignore(L.build_call snprintf_func [|addr;len;fmt;e'|] "" builder);
+                addr
+            in
+            let t = L.type_of e' in
+            let str = if t = i1_t then to_string i32_format
+                else if t = i32_t then to_string i32_format
+                else if t = float_t then to_string float_format
+                else raise (Failure not_impl)
+            in
+            (builder, str)
+        | SAssign(v, (_,e)) ->
+            let (builder, e') = expr builder e in
+            Hashtbl.add var_tbl v e';
+            (builder, e')
         | SId(v) ->
-            let addr = Hashtbl.find var_tbl v in
-            (builder, addr)
+            let e' = Hashtbl.find var_tbl v in
+            (builder, e')
         | SIfElse(i) ->
             let (builder, cond) = expr builder (snd i.sicond) in
             let merge_bb = L.append_block context "merge" main in

@@ -212,17 +212,19 @@ char *ht_get( hashtable_t *hashtable, char *key ) {
     }
 }
 
-void ht_print (hashtable_t *hashtable) {
-    printf("this is the table\n");
+int ht_print (hashtable_t *hashtable) {
+    int i = 0;
     for (int i = 0; i < hashtable->size; i++) {
         entry_t *pair = hashtable->table[i];
-        printf("%d ", i);
+        printf("(%d) ", i);
         if ( pair != NULL) {
-            printf("k %lu ", (unsigned long) pair->key);
-            printf("v %s", pair->value);
+            printf("%lu : ", (unsigned long) pair->key);
+            printf("%lu", (unsigned long) pair->value);
+            i++;
         }
         printf("\n");
     }
+    return i;
 }
 
 /*
