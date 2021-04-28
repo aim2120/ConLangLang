@@ -454,11 +454,20 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let e' = try Hashtbl.find var_tbl v
                 with Not_found -> (
                     try
-                        let locals = Hashtbl.find func_locals_tbl v in
+                        let locals = Hashtbl.find func_locals_tbl func in
                         let (_, out) = List.find (fun (n,_) -> n = v) locals in
                         out
                     with Not_found ->
-                    (raise (Failure ("ID NOT FOUND: " ^ v)))
+                    (
+                        let print_tbl k v =
+                            print_string("KEY: " ^ k);
+                            print_string("VALUES: ");
+                            List.iter (fun (s,l) -> print_string(s ^ " " ^ (L.string_of_llvalue l) ^ ";")) v;
+                            print_endline("");
+                        in
+                        Hashtbl.iter print_tbl func_locals_tbl;
+                        raise (Failure ("ID NOT FOUND: " ^ v))
+                    )
                 )
             in
             (builder, e')
@@ -515,7 +524,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let params = Array.to_list (L.params func) in
             let make_param func_locals p (t,n) =
                 L.set_value_name n p;
-                let addr = L.build_alloca (typ_to_ltyp t) "" builder in
+                let addr = L.build_alloca (typ_to_ltyp t) "" function_builder in
                 (n, addr)::func_locals
             in
             let func_locals = List.fold_left2 make_param [] params f.sformals in

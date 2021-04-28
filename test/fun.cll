@@ -1,7 +1,6 @@
 y = 'hello';
 f = <string x:int> {
-    y;
+    sprint(x);
     0;
 };
-
-sprint(y);
+f(y);
