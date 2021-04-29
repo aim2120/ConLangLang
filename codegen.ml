@@ -29,7 +29,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     (* to store different types of lists/dicts *)
     let list_types = Hashtbl.create 10 in
     let dict_types = Hashtbl.create 10 in
-    let fun_name_i = ref 0 in
+    let fun_name_i :int ref = ref 0 in
 
     (* Get types from the context *)
     let i32_t         = L.i32_type    context
@@ -107,7 +107,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         | A.Fun(f,t) ->
             let ltyp = typ_to_ltyp t in
             let f_typs = Array.of_list (List.map typ_to_ltyp f) in
-            L.function_type ltyp f_typs
+            (L.pointer_type (L.function_type ltyp f_typs))
         | _        -> raise (Failure ("type" ^ not_impl))
 (*
         | A.Regex  ->
@@ -454,21 +454,24 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let e' = try
                     let locals = Hashtbl.find func_locals_tbl func in
                     let (_, out) = List.find (fun (n,_) -> n = v) locals in
-                    L.build_load out "local" builder
+                    out
                 with Not_found -> (
                     try
                         Hashtbl.find var_tbl v
-                    with Not_found ->
-                    (
-                        let print_tbl k v =
-                            print_string("KEY: " ^ k);
-                            print_endline("");
-                            print_string("VALUES: ");
-                            List.iter (fun (s,l) -> print_string(s ^ " " ^ (L.string_of_llvalue l) ^ ";")) v;
-                            print_endline("");
-                        in
-                        Hashtbl.iter print_tbl func_locals_tbl;
-                        raise (Failure ("ID NOT FOUND: " ^ v))
+                    with Not_found -> (
+                        match L.lookup_function v the_module with
+                            Some f -> f
+                            | None -> (
+                                let print_tbl k v =
+                                    print_string("KEY: " ^ k);
+                                    print_endline("");
+                                    print_string("VALUES: ");
+                                    List.iter (fun (s,l) -> print_string(s ^ " " ^ (L.string_of_llvalue l) ^ ";")) v;
+                                    print_endline("");
+                                in
+                                Hashtbl.iter print_tbl func_locals_tbl;
+                                raise (Failure ("ID NOT FOUND: " ^ v))
+                            )
                     )
                 )
             in
@@ -515,7 +518,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             (builder, out)
         | SFunLit(f) ->
             let f_name = "fun" ^ (string_of_int !fun_name_i) in
-            let fun_name_i = !fun_name_i + 1 in
+            fun_name_i := !fun_name_i + 1;
             let ltyp = typ_to_ltyp f.sftyp in
             let formals_arr = Array.of_list (List.map (fun (t,_) -> typ_to_ltyp t) f.sformals) in
             let func_typ = L.function_type ltyp formals_arr in
@@ -535,7 +538,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
             let (_, function_builder, function_out) = List.fold_left stmt (func, function_builder, zero) f.sfblock in
             ignore(L.build_ret function_out function_builder);
-            (builder, func)
+            let addr = L.build_alloca (L.pointer_type func_typ) "func*" builder in
+            ignore(L.build_store func addr builder);
+            (builder, addr)
         | SFunCall((typlist,e), l) ->
             (* let (builder, func) = expr parent_func builder f *)
             let make_actuals (builder, actuals) (_, e) =
@@ -543,7 +548,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 (builder, e'::actuals)
             in
             let (builder, actuals) = List.fold_left make_actuals (builder, []) l in
-            let (builder, func) = expr parent_func builder e in
+            let (builder, func_ptr) = expr parent_func builder e in
+            let func = L.build_load func_ptr "func" builder in
             let actuals_arr = Array.of_list (List.rev actuals) in
             let out = L.build_call func actuals_arr "funcall" builder in
             (builder, out)

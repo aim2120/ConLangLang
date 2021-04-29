@@ -231,6 +231,7 @@ int ht_print (hashtable_t *hashtable) {
     return i;
 }
 
+/*
 int main( int argc, char **argv ) {
 
     hashtable_t *hashtable = ht_create( 0 );
@@ -251,3 +252,4 @@ int main( int argc, char **argv ) {
 
     return 0;
 }
+*/
