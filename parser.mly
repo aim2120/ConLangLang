@@ -95,6 +95,10 @@ expr:
       { Func({id=$5; formals=$7; typ=$3; block=(List.rev $11) }) }
 */
 
+typlist_opt:
+    /* nothing */ { [] }
+    | typlist { List.rev $1 }
+
 typlist:
     typlist COMMA typ { $3::$1 }
     | typ { [$1] }
@@ -155,7 +159,7 @@ typ:
     | REGEX { Regex }
     | LIST LANGLE typ RANGLE { List($3) }
     | DICT LANGLE typ COMMA typ RANGLE { Dict($3, $5) }
-    | FUN LANGLE formallist_opt COLON typ RANGLE { Fun($3, $5) }
+    | FUN LANGLE typlist_opt COLON typ RANGLE { Fun($3, $5) }
     | UT { UserTyp($1) }
     | UTD { UserTypDef($1) }
     | NONE { Null }

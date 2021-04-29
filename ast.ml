@@ -7,7 +7,7 @@ type uop = Neg | Not
 type typ = Int | Bool | Float | String | Regex
   | List of typ
   | Dict of typ * typ
-  | Fun of (typ * string) list * typ
+  | Fun of typ list * typ
   | UserTyp of string
   | UserTypDef of string
   | Null
@@ -96,7 +96,7 @@ let rec string_of_typ = function
   | Regex -> "regex"
   | List(t) -> "list" ^ "<" ^ string_of_typ t ^ ">"
   | Dict(t1,t2) -> "dict" ^ "<" ^ string_of_typ t1 ^ "," ^ string_of_typ t2 ^ ">"
-  | Fun(f,t) -> "fun" ^ "<" ^ String.concat ", " (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) f) ^ ":" ^ string_of_typ t ^ ">"
+  | Fun(f,t) -> "fun" ^ "<" ^ String.concat ", " (List.map (fun t -> string_of_typ t) f) ^ ":" ^ string_of_typ t ^ ">"
   | UserTyp(u) -> u
   | UserTypDef(u) -> u
   | Null -> "none"

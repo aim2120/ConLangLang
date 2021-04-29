@@ -104,12 +104,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         (*
         | A.UserTyp(ut)  -> let (_, at) = StringMap.find ut env.tsym in ltype_of_typ at
         *)
+        | A.Fun(f,t) ->
+            let ltyp = typ_to_ltyp t in
+            let f_typs = Array.of_list (List.map typ_to_ltyp f) in
+            L.function_type ltyp f_typs
         | _        -> raise (Failure ("type" ^ not_impl))
 (*
-        | A.String ->
         | A.Regex  ->
-        | A.List(t) ->
-        | A.Dict(t1,t2)  ->
         | A.Fun(f,t)  ->
         | A.UserTypDef(u) ->
 *)

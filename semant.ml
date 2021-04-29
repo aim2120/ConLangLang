@@ -49,30 +49,30 @@ let check_ast ast =
     in
     let built_in_funs =
         let l = [
-            ("sprint", [(String, "x")], Int);
-            ("lprint", [(List(String), "l")], Int);
-            ("dprint", [(Dict(String,String), "d")], Int);
-            ("tostring", [(Int, "x")], String);
-            ("tostring", [(Bool, "x")], String);
-            ("tostring", [(Float, "x")], String);
-            ("lget", [(List(String), "l"); (Int, "n")], String);
-            ("dget", [(Dict(String,String), "d"); (String, "k")], String);
-            ("dset", [(Dict(String,String), "d"); (String, "k"); (String, "v")], Dict(String,String));
+            ("sprint", [String], Int);
+            ("lprint", [List(String)], Int);
+            ("dprint", [Dict(String,String)], Int);
+            ("tostring", [Int], String);
+            ("tostring", [Bool], String);
+            ("tostring", [Float], String);
+            ("lget", [List(String); (Int)], String);
+            ("dget", [Dict(String,String); String], String);
+            ("dset", [Dict(String,String); String; String], Dict(String,String));
         ] in
         List.fold_left add_built_in StringMap.empty l
     in
     let add_built_in_list vsym t =
         let l = [
-            ("lprint", [(List(t), "l")], Int);
-            ("lget", [(List(t), "l"); (Int, "n")], t);
+            ("lprint", [List(t)], Int);
+            ("lget", [List(t); Int], t);
         ] in
         List.fold_left add_built_in vsym l
     in
     let add_built_in_dict vsym t1 t2 =
         let l = [
-            ("dprint", [(Dict(t1,t2), "d")], Int);
-            ("dget", [(Dict(t1,t2), "d"); (t1, "k")], t2);
-            ("dset", [(Dict(t1,t2), "d"); (t1, "k"); (t2, "v")], Dict(t1,t2));
+            ("dprint", [Dict(t1,t2)], Int);
+            ("dget", [Dict(t1,t2); t1], t2);
+            ("dset", [Dict(t1,t2); t1; t2], Dict(t1,t2));
         ] in
         List.fold_left add_built_in vsym l
     in
@@ -249,7 +249,9 @@ let check_ast ast =
                 sftyp = f.ftyp;
                 sfblock = List.rev sfblock;
             } in
-            ([Fun(f'.sformals, f'.sftyp)], SFunLit(f'), env.vsym)
+            let ret_typ = f'.sftyp in
+            let formal_typs = List.map (fun (t,_) -> t) f'.sformals in
+            ([Fun(formal_typs, ret_typ)], SFunLit(f'), env.vsym)
         | Binop(e1,o,e2) ->
             let (typlist1, se1, vsym) = check_expr env e1 in
             let (typlist2, se2, vsym') = check_expr (add_env_vsym env vsym) e2 in
@@ -351,9 +353,8 @@ let check_ast ast =
             let rec check_args formals actuals = (
                 match formals, actuals with
                 f_hd::f_tl, a_hd::a_tl ->
-                    let (f_t, _) = f_hd in
                     let (a_typlist, _) = a_hd in
-                    ignore(check_typlist a_typlist f_t "function argument type doesn't match formal definition");
+                    ignore(check_typlist a_typlist f_hd "function argument type doesn't match formal definition");
                     (* only keep actual argument typ that matches formal definition *)
                     check_args f_tl a_tl
                 | [], [] -> ()

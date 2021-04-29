@@ -1,0 +1,6 @@
+f = <string x:int>{
+    sprint(x);
+};
+f2 = <fun<string:int> f:int>{
+    f('hello');
+};
