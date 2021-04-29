@@ -1,0 +1,7 @@
+f = <:fun<int:int>>{
+    <int x:int>{
+        x * 10;
+    };
+};
+f2 = f();
+sprint(tostring(f2(2)));

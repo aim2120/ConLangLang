@@ -454,7 +454,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let e' = try
                     let locals = Hashtbl.find func_locals_tbl func in
                     let (_, out) = List.find (fun (n,_) -> n = v) locals in
-                    out
+                    L.build_load out "local" builder
                 with Not_found -> (
                     try
                         Hashtbl.find var_tbl v
@@ -538,9 +538,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
             let (_, function_builder, function_out) = List.fold_left stmt (func, function_builder, zero) f.sfblock in
             ignore(L.build_ret function_out function_builder);
-            let addr = L.build_alloca (L.pointer_type func_typ) "func*" builder in
-            ignore(L.build_store func addr builder);
-            (builder, addr)
+            (builder, func)
         | SFunCall((typlist,e), l) ->
             (* let (builder, func) = expr parent_func builder f *)
             let make_actuals (builder, actuals) (_, e) =
@@ -548,8 +546,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 (builder, e'::actuals)
             in
             let (builder, actuals) = List.fold_left make_actuals (builder, []) l in
-            let (builder, func_ptr) = expr parent_func builder e in
-            let func = L.build_load func_ptr "func" builder in
+            let (builder, func) = expr parent_func builder e in
             let actuals_arr = Array.of_list (List.rev actuals) in
             let out = L.build_call func actuals_arr "funcall" builder in
             (builder, out)
