@@ -1,1 +1,2 @@
-<int>[if:int(true){0;}else{1;}];
+x = <int>[if:int(true){0;}else{1;}];
+sprint(tostring(lget(x,0)));

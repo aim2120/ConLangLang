@@ -4,4 +4,5 @@ save*
 *.out
 *.ast
 *.err
+*.o
 sandbox

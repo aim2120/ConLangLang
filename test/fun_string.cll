@@ -1,5 +1,6 @@
-f = <string x:int>{
+f = <string x:string>{
     sprint(x);
+    x ^ '!';
 };
 h = 'hello';
-f(h);
+sprint(f(h));

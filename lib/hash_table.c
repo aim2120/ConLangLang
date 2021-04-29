@@ -66,16 +66,18 @@ hashtable_t *ht_create( int size ) {
 /* Copy old table into new larger table */
 hashtable_t *ht_grow( hashtable_t *hashtable ) {
     int new_size;
+    printf("growing table\n");
 
     new_size = hashtable->filled;
     new_size = find_prime(new_size * 2);
 
-    hashtable_t* new_hashtable =  ht_create(new_size);
+    hashtable_t* new_hashtable = ht_create(new_size);
 
     for (int i = 0; i < hashtable->size; i++) {
         entry_t *pair = hashtable->table[i];
-        if ( pair != NULL ) {
+        while ( pair != NULL && pair->key != NULL ) {
             ht_set(new_hashtable, pair->key, pair->value);
+            pair = pair->next;
         }
     }
 
@@ -87,14 +89,16 @@ hashtable_t *ht_grow( hashtable_t *hashtable ) {
 void ht_delete( hashtable_t *hashtable ) {
     for (int i = 0; i < hashtable->size; i++) {
         entry_t *pair = hashtable->table[i];
-        if ( pair != NULL) {
+        while ( pair != NULL) {
             if (pair->key != NULL) {
                 free(pair->key);
             }
             if (pair->value != NULL) {
                 free(pair->value);
             }
-            free(pair);
+            entry_t *temp = pair;
+            pair = pair->next;
+            free(temp);
         }
     }
     free(hashtable->table);
@@ -217,25 +221,28 @@ int ht_print (hashtable_t *hashtable) {
     for (int i = 0; i < hashtable->size; i++) {
         entry_t *pair = hashtable->table[i];
         printf("(%d) ", i);
-        if ( pair != NULL) {
+        while ( pair != NULL) {
             printf("%lu : ", (unsigned long) pair->key);
-            printf("%lu", (unsigned long) pair->value);
-            i++;
+            printf("%lu; ", (unsigned long) pair->value);
+            pair = pair->next;
         }
         printf("\n");
     }
     return i;
 }
 
-/*
 int main( int argc, char **argv ) {
 
-    hashtable_t *hashtable = ht_create( 65536 );
+    hashtable_t *hashtable = ht_create( 0 );
 
     ht_set( hashtable, "key1", "inky" );
+    ht_print(hashtable);
     ht_set( hashtable, "key2", "pinky" );
+    ht_print(hashtable);
     ht_set( hashtable, "key3", "blinky" );
+    ht_print(hashtable);
     ht_set( hashtable, "key4", "floyd" );
+    ht_print(hashtable);
 
     printf( "%s\n", ht_get( hashtable, "key1" ) );
     printf( "%s\n", ht_get( hashtable, "key2" ) );
@@ -244,4 +251,3 @@ int main( int argc, char **argv ) {
 
     return 0;
 }
-*/

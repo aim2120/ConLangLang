@@ -1,0 +1,3 @@
+<string x:int>{
+    sprint(x);
+}('hello');

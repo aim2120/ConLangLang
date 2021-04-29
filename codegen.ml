@@ -228,7 +228,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         | SStrLit(s) ->
             let prefix = "s" in
             let len = String.length s + 1 in
-            let addr = L.build_array_alloca i8_t (L.const_int i8_t len) "string" builder in
+            let addr = L.build_array_malloc i8_t (L.const_int i8_t len) "string" builder in
             let store_char i c =
                 let i' = string_of_int i in
                 let c' = Char.code c in
@@ -286,7 +286,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ignore(L.build_store null_t2 addr_t2 builder);
 
             (* create dict *)
-            (* dict size = prime num ~= 1.3 * number of elements *)
             let ht =  L.build_call ht_create_func [|L.const_int i32_t (List.length d)|] "tbl" builder in
             let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" builder in
             ignore(L.build_store ht addr_ht builder);
@@ -349,7 +348,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                         let len1 = L.build_call strlen_func [|e1'|] "e1len" builder in
                         let len2 = L.build_call strlen_func [|e2'|] "e2len" builder in
                         let len = L.build_add len1 len2 "len" builder in
-                        let out_addr = L.build_array_alloca i8_t len "out" builder in
+                        let out_addr = L.build_array_malloc i8_t len "out" builder in
                         let out_addr = L.build_call strcpy_func [|out_addr; e1'|] "cpy" builder in
                         let out_addr = L.build_call strcat_func [|out_addr; e2'|] "cat" builder in
                         out_addr
@@ -365,7 +364,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             )
             in
             (builder, out)
-        | SFunCall("lget", [(_, l); (_,n)]) ->
+        | SFunCall((_,SId("lget")), [(_, l); (_,n)]) ->
             let (builder, addr) = expr parent_func builder l in
             let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" builder in
             let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" builder in
@@ -378,7 +377,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let data = L.build_bitcast c_data (L.type_of ltyp_ptr) "data" builder in
             let data_load = L.build_load data "dataload" builder in
             (builder, data_load)
-        | SFunCall("dget", [(_, dict); (_,k)]) ->
+        | SFunCall((_,SId("dget")), [(_, dict); (_,k)]) ->
             let (builder, addr) = expr parent_func builder dict in
             let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" builder in
             let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" builder in
@@ -395,7 +394,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let v_data = L.build_bitcast c_v_data (L.type_of ltyp2_ptr) "vdata" builder in
             let v_data_load = L.build_load v_data "vdataload" builder in
             (builder, v_data_load)
-        | SFunCall("dset", [(_, dict); (_,k); (_,v)]) ->
+        | SFunCall((_,SId("dset")), [(_, dict); (_,k); (_,v)]) ->
             let (builder, addr) = expr parent_func builder dict in
             let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" builder in
             let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" builder in
@@ -412,23 +411,23 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let ht' = L.build_call ht_set_func [|ht;c_k_data;c_v_data|] "ht_" builder in
             ignore(L.build_store ht' addr_ht builder);
             (builder, addr)
-        | SFunCall("sprint", [(typlist,e)]) ->
+        | SFunCall((_,SId("sprint")), [(typlist,e)]) ->
             let (builder, e') = expr parent_func builder e in
             let out = L.build_call printf_func [|str_format;e'|] "printf" builder in
             (builder, out)
-        | SFunCall("lprint", [(_,e)]) ->
+        | SFunCall((_,SId("lprint")), [(_,e)]) ->
             let (builder, addr) = expr parent_func builder e in
             let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" builder in
             let head_node = L.build_load addr_head "headnode" builder in
             let out = L.build_call ll_print_func [|head_node|] "printlist" builder in
             (builder, out)
-        | SFunCall("dprint", [(_,e)]) ->
+        | SFunCall((_,SId("dprint")), [(_,e)]) ->
             let (builder, addr) = expr parent_func builder e in
             let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" builder in
             let ht = L.build_load addr_ht "ht" builder in
             let out = L.build_call ht_print_func [|ht|] "printdict" builder in
             (builder, out)
-        | SFunCall("tostring", [(_,e)]) ->
+        | SFunCall((_,SId("tostring")), [(_,e)]) ->
             let (builder, e') = expr parent_func builder e in
             let to_string fmt =
                 let len = L.build_call snprintf_func [|L.const_null string_t;zero;fmt;e'|] "" builder
@@ -536,17 +535,14 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (_, function_builder, function_out) = List.fold_left stmt (func, function_builder, zero) f.sfblock in
             ignore(L.build_ret function_out function_builder);
             (builder, func)
-        | SFunCall(v, l) ->
-            (* TODO: make calling funlit w/o variable name *)
+        | SFunCall((typlist,e), l) ->
             (* let (builder, func) = expr parent_func builder f *)
-            let func = try Hashtbl.find var_tbl v
-                with Not_found -> raise (Failure "FUNC NOT FOUND")
-            in
             let make_actuals (builder, actuals) (_, e) =
                 let (builder, e') = expr parent_func builder e in
                 (builder, e'::actuals)
             in
             let (builder, actuals) = List.fold_left make_actuals (builder, []) l in
+            let (builder, func) = expr parent_func builder e in
             let actuals_arr = Array.of_list (List.rev actuals) in
             let out = L.build_call func actuals_arr "funcall" builder in
             (builder, out)

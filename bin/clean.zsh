@@ -2,7 +2,8 @@
 
 setopt +o nomatch
 setopt extendedglob
-rm -rf **/*.out **/*.ast **/*.err
+rm "test.out"
+rm -rf **/*.ast **/*.err
 rm -rf **/*.o
 rm -f parser.^mly
 rm cll_build/*

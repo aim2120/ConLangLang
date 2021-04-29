@@ -1,0 +1,5 @@
+f = <list<string> l:string>{
+    lget(l,0);
+};
+l = <string>['a','b','c'];
+sprint(f(l));

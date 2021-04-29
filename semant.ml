@@ -333,35 +333,37 @@ let check_ast ast =
         | UTDId(id) ->
             let typlist = find_in_map env.vsym id (id ^ " not defined") in
             (typlist, SUTDId(id), env.vsym)
-        | FunCall(id,l) ->
+        | FunCall(e,l) ->
             let make_actuals (vsym, actuals) a =
                 let (a_typlist, a_e, vsym') = check_expr (add_env_vsym env vsym) a in
                 (vsym', (a_typlist, a_e)::actuals)
             in
             let (vsym, actuals) = List.fold_left make_actuals (env.vsym, []) l in
             let actuals = List.rev actuals in
-            let typlist = find_in_map vsym id (id ^ " not defined") in
-            (* multiple function definitions can exist *)
+            let (typlist, se, vsym) = check_expr (add_env_vsym env vsym) e in
             let get_formals_and_ret = function
                 Fun(formals, typ) -> (formals, typ)
-                | _ -> make_err (id ^ " is not a function variable")
+                | _ -> make_err ("trying to call a non-function expression")
             in
+            (* multiple function definitions can exist *)
             let fun_defs = List.map get_formals_and_ret typlist in
-            let rec check_args formals actuals =
+            (* TODO: make with expression instead of id *)
+            let rec check_args formals actuals = (
                 match formals, actuals with
                 f_hd::f_tl, a_hd::a_tl ->
                     let (f_t, _) = f_hd in
                     let (a_typlist, _) = a_hd in
-                    let t = check_typlist a_typlist f_t "function argument type doesn't match formal definition" in
+                    ignore(check_typlist a_typlist f_t "function argument type doesn't match formal definition");
                     (* only keep actual argument typ that matches formal definition *)
                     check_args f_tl a_tl
                 | [], [] -> ()
                 | _, _ -> make_err "function arguments incompatible with function definition"
+            )
             in
             let rec try_def (formals, typ) fun_defs =
                 try
                     (check_args formals actuals;
-                    ([typ], SFunCall(id, actuals), vsym))
+                    ([typ], SFunCall(([Fun(formals,typ)],se), actuals), vsym))
                 with Failure(e) -> (match fun_defs with
                     hd::tl -> try_def hd tl
                     | [] -> make_err e)

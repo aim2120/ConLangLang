@@ -31,7 +31,7 @@ type expr =
   | TypDefAssign of string * string * (string * expr) list
   | Id of string
   | UTDId of string
-  | FunCall of string * expr list
+  | FunCall of expr * expr list
   | Match of mtch
   | IfElse of ifelse
   | While of whle
@@ -124,7 +124,7 @@ let rec string_of_expr = function
   | Cast(t, e) -> "(" ^ String.concat ", " (List.map string_of_typ t) ^ ")" ^ string_of_expr e
   | Assign(v, e) -> v ^ " = " ^ string_of_expr e
   | TypDefAssign(t, v, l) -> t ^ " " ^ v ^ " = {" ^ String.concat "" (List.map (fun p -> fst p ^ " = " ^ string_of_expr (snd p) ^ ";") l) ^ "}"
-  | FunCall(v, l) -> v ^ "(" ^ String.concat ", " (List.map string_of_expr l) ^ ")"
+  | FunCall(e, l) -> string_of_expr e ^ "(" ^ String.concat ", " (List.map string_of_expr l) ^ ")"
   | Match(m) -> "match:" ^ string_of_typ m.mtyp ^ " (" ^ string_of_expr m.minput ^ ")" ^ string_of_matchlist m.matchlist
   | IfElse(i) -> "if:" ^ string_of_typ i.ityp ^ " (" ^ string_of_expr i.icond ^ ") {" ^
       string_of_stmtblock i.ifblock ^ "} else {" ^ string_of_stmtblock i.elseblock ^ "}"

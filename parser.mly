@@ -23,6 +23,7 @@ open Ast
 %left OR
 %left AND
 %left EQ
+%right LPAREN
 %left LANGLE RANGLE
 %left CONCAT
 %left PLUS MINUS
@@ -81,7 +82,7 @@ expr:
     | UTD UTDID ASSIGN LCURLY initlist RCURLY { TypDefAssign($1, $2, $5) }
     | ID { Id($1) }
     | UTDID { UTDId($1) }
-    | ID LPAREN exprlist_opt RPAREN { FunCall($1, $3) }
+    | expr LPAREN exprlist_opt RPAREN { FunCall($1, $3) }
     | MATCH COLON typ LPAREN expr RPAREN matchlist { Match({minput=$5; mtyp=$3; matchlist=$7;}) }
     | IF COLON typ LPAREN expr RPAREN LCURLY stmtblock RCURLY ELSE LCURLY stmtblock RCURLY { IfElse({icond=$5; ityp=$3; ifblock=(List.rev $8); elseblock=(List.rev $12);}) }
     | WHILE COLON typ LPAREN expr RPAREN LCURLY stmtblock RCURLY { While({wcond=$5; wtyp=$3; wblock=(List.rev $8);}) }
