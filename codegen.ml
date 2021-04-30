@@ -580,16 +580,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                         match L.lookup_function v the_module with
                             Some f -> f
                             | None -> (
-                                let print_tbl k v =
-                                    print_string("KEY: " ^ k);
-                                    print_endline("");
-                                    print_string("VALUES: ");
-                                    Hashtbl.iter (fun k v -> print_string(k ^ " " ^ (L.string_of_llvalue v) ^ ";")) v;
-                                    print_endline("");
-                                    print_endline("");
-                                in
-                                Hashtbl.iter print_tbl func_locals_tbl;
-                                raise (Failure ("ID NOT FOUND: " ^ v))
+                                raise (Failure ("ID not found: " ^ v))
                             )
                     )
                 )

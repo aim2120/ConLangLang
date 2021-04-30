@@ -130,13 +130,15 @@ entry_t *ht_newpair( char *key, char *value ) {
         return NULL;
     }
 
-    if( ( newpair->key = strdup( key ) ) == NULL ) {
+    if( ( newpair->key = malloc( sizeof( char * ) ) ) == NULL ) {
         return NULL;
     }
+    memcpy( newpair->key, key, sizeof ( char * ) );
 
-    if( ( newpair->value = strdup( value ) ) == NULL ) {
+    if( ( newpair->value = malloc( sizeof( char * ) ) ) == NULL ) {
         return NULL;
     }
+    memcpy( newpair->value, value, sizeof ( char * ) );
 
     newpair->next = NULL;
 
@@ -154,16 +156,15 @@ hashtable_t *ht_set( hashtable_t *hashtable, char *key, char *value ) {
 
     next = hashtable->table[ bin ];
 
-    while( next != NULL && next->key != NULL && strcmp( key, next->key ) > 0 ) {
+    while( next != NULL && next->key != NULL && memcmp( key, next->key, 1 ) != 0 ) {
         last = next;
         next = next->next;
     }
 
     /* There's already a pair.  Let's replace that string. */
-    if( next != NULL && next->key != NULL && strcmp( key, next->key ) == 0 ) {
+    if( next != NULL && next->key != NULL && memcmp( key, next->key, 1 ) != 0 ) {
 
-        free( next->value );
-        next->value = strdup( value );
+        memcpy( next->value, value, sizeof( char * ) );
 
     /* Nope, could't find it.  Time to grow a pair. */
     } else {
@@ -207,12 +208,12 @@ char *ht_get( hashtable_t *hashtable, char *key ) {
 
     /* Step through the bin, looking for our value. */
     pair = hashtable->table[ bin ];
-    while( pair != NULL && pair->key != NULL && strcmp( key, pair->key ) != 0 ) {
+    while( pair != NULL && pair->key != NULL && memcmp( key, pair->key, 1 ) != 0 ) {
         pair = pair->next;
     }
 
     /* Did we actually find anything? */
-    if( pair == NULL || pair->key == NULL || strcmp( key, pair->key ) != 0 ) {
+    if( pair == NULL || pair->key == NULL || memcmp( key, pair->key , 1 ) != 0 ) {
         return NULL;
 
     } else {
