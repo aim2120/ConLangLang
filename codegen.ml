@@ -417,20 +417,41 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             (builder, data_load)
         | SFunCall((_,SId("dget")), [(_, dict); (_,k)]) ->
             let (builder, addr) = expr parent_func builder dict in
-            let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" builder in
-            let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" builder in
-            let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" builder in
-            let ltyp1_ptr = L.build_load addr_t1 "t1*" builder in
-            let ltyp2_ptr = L.build_load addr_t2 "t2*" builder in
-            let ltyp1 = L.type_of (L.build_load ltyp1_ptr "t1" builder) in
-            let ltyp2 = L.type_of (L.build_load ltyp2_ptr "t2" builder) in
             let (builder, k') = expr parent_func builder k in
-            let k_data = make_addr k' ltyp1 false builder in
-            let c_k_data = L.build_bitcast k_data string_t "ckdata" builder in
-            let ht = L.build_load addr_ht "ht" builder in
-            let c_v_data = L.build_call ht_get_func [|ht;c_k_data|] "cvdata" builder in
-            let v_data = L.build_bitcast c_v_data (L.type_of ltyp2_ptr) "vdata" builder in
-            let v_data_load = L.build_load v_data "vdataload" builder in
+            let f_name = "dget" ^ (str_of_ltyp (L.type_of addr)) in
+            let func = (match L.lookup_function f_name the_module with
+                Some f -> f
+                | None -> (
+                    let addr_typ = L.type_of addr in
+                    let k_typ = L.type_of k' in
+                    let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" builder in
+                    let v_typ = L.type_of (L.build_load (L.build_load addr_t2 "t2*" builder) "t2" builder) in
+                    let (func, function_builder) = make_func f_name [(addr_typ,"d");(k_typ,"k")] v_typ in
+
+                    (* building dget function *)
+                    let (function_builder, addr) = expr func function_builder (SId("d")) in
+                    let (function_builder, k')   = expr func function_builder (SId("k")) in
+
+                    let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" function_builder in
+                    let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" function_builder in
+                    let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" function_builder in
+                    let ltyp1_ptr = L.build_load addr_t1 "t1*" function_builder in
+                    let ltyp2_ptr = L.build_load addr_t2 "t2*" function_builder in
+                    let ltyp1 = L.type_of (L.build_load ltyp1_ptr "t1" function_builder) in
+                    let ltyp2 = L.type_of (L.build_load ltyp2_ptr "t2" function_builder) in
+                    let k_data = make_addr k' ltyp1 false function_builder in
+                    let c_k_data = L.build_bitcast k_data string_t "ckdata" function_builder in
+                    let ht = L.build_load addr_ht "ht" function_builder in
+                    let c_v_data = L.build_call ht_get_func [|ht;c_k_data|] "cvdata" function_builder in
+                    let v_data = L.build_bitcast c_v_data (L.type_of ltyp2_ptr) "vdata" function_builder in
+                    let v_data_load = L.build_load v_data "vdataload" function_builder in
+                    ignore(L.build_ret v_data_load function_builder);
+
+                    func
+                )
+            )
+            in
+            let v_data_load = L.build_call func [|addr;k'|] "dget" builder in
             (builder, v_data_load)
         | SFunCall((_,SId("dset")), [(_, dict); (_,k); (_,v)]) ->
             let (builder, addr) = expr parent_func builder dict in
@@ -445,6 +466,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let v_typ = L.type_of v' in
                     let (func, function_builder) = make_func f_name [(addr_typ,"d");(k_typ,"k");(v_typ,"v")] addr_typ in
 
+                    (* building dset function *)
                     let (function_builder, addr) = expr func function_builder (SId("d")) in
                     let (function_builder, k')   = expr func function_builder (SId("k")) in
                     let (function_builder, v')   = expr func function_builder (SId("v")) in
