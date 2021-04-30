@@ -403,19 +403,41 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             in
             (builder, out)
         | SFunCall((_,SId("lget")), [(_, l); (_,n)]) ->
+            (* TODO: WHY DOES THIS SOMETIMES RETURN NULL *)
             let (builder, addr) = expr parent_func builder l in
-            let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" builder in
-            let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" builder in
-            let ltyp_ptr = L.build_load addr_t "t*" builder in
-            let ltyp = L.type_of (L.build_load ltyp_ptr "t" builder) in
-
-            let head_node = L.build_load addr_head "headnode" builder in
             let (builder, n') = expr parent_func builder n in
-            let c_data = L.build_call ll_get_func [|head_node;n'|] "cdata" builder in
-            let data = L.build_bitcast c_data (L.type_of ltyp_ptr) "data" builder in
-            let data_load = L.build_load data "dataload" builder in
+            let f_name = "lget" ^ (str_of_ltyp (L.type_of addr)) in
+            let func = (match L.lookup_function f_name the_module with
+                Some f -> f
+                | None -> (
+                    let addr_typ = L.type_of addr in
+                    let n_typ = L.type_of n' in
+                    let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" builder in
+                    let t = L.type_of (L.build_load (L.build_load addr_t "t*" builder) "t" builder) in
+                    let (func, function_builder) = make_func f_name [(addr_typ,"l");(n_typ,"n")] t in
+
+                    let (function_builder, addr) = expr func function_builder (SId("l")) in
+                    let (function_builder, k') = expr func function_builder (SId("n")) in
+
+                    let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" function_builder in
+                    let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
+                    let ltyp_ptr = L.build_load addr_t "t*" function_builder in
+                    let ltyp = L.type_of (L.build_load ltyp_ptr "t" function_builder) in
+
+                    let head_node = L.build_load addr_head "headnode" function_builder in
+                    let c_data = L.build_call ll_get_func [|head_node;n'|] "cdata" function_builder in
+                    let data = L.build_bitcast c_data (L.type_of ltyp_ptr) "data" function_builder in
+                    let data_load = L.build_load data "dataload" function_builder in
+                    ignore(L.build_ret data_load function_builder);
+
+                    func
+                )
+            )
+            in
+            let data_load = L.build_call func [|addr;n'|] "lget" builder in
             (builder, data_load)
         | SFunCall((_,SId("dget")), [(_, dict); (_,k)]) ->
+            (* TODO: WHY DOES THIS SOMETIMES SEGFAULT? *)
             let (builder, addr) = expr parent_func builder dict in
             let (builder, k') = expr parent_func builder k in
             let f_name = "dget" ^ (str_of_ltyp (L.type_of addr)) in

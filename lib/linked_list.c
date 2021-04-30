@@ -76,12 +76,16 @@ int ll_print(ll_node *head) {
 /*
 int main() {
 
+    char *x0;
+    char *x1;
+    char *x2;
     ll_node *head = ll_create("a");
     ll_push(head, "b");
     ll_push(head, "c");
-    ll_print(head);
-    ll_pop(head);
-    ll_print(head);
+    x0 = ll_get(head, 0);
+    x1 = ll_get(head, 1);
+    x2 = ll_get(head, 2);
+    printf("%s %s %s\n", x0, x1, x2);
 
     return 0;
 }

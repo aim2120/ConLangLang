@@ -1,3 +1,7 @@
+a = <string>['a','b','c'];
+sprint(lget(a,0));
 l = <list<string>>[<string>['a','b'],<string>['c','d']];
 l_ = lget(l,0);
+lprint(l);
+lprint(l_);
 sprint(lget(l_,0));
