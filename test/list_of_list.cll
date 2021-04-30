@@ -1,7 +1,11 @@
-a = <string>['a','b','c'];
-sprint(lget(a,0));
-l = <list<string>>[<string>['a','b'],<string>['c','d']];
-l_ = lget(l,0);
-lprint(l);
-lprint(l_);
-sprint(lget(l_,0));
+a = <string>['one','two','three'];
+sprint('table a');
+lprint(a);
+sprint(lget(a,2));
+b = <list<string>>[<string>['a','b'],<string>['c','d'],<string>['e','f','g']];
+sprint('table b');
+lprint(b);
+c = lget(b,2);
+sprint('table c');
+lprint(c);
+sprint(lget(c,2));

@@ -16,8 +16,11 @@ ll_node *ll_create(char *data) {
         return NULL;
     }
 
-    if ((new_node->data = strdup(data)) == NULL) { return NULL;
+    if ((new_node->data = malloc(sizeof (char *))) == NULL) {
+        return NULL;
     }
+
+    memcpy(new_node->data, data, sizeof (char *));
 
     new_node->next = NULL;
     return new_node;
@@ -25,9 +28,11 @@ ll_node *ll_create(char *data) {
 
 ll_node *ll_push(ll_node *head, char *data) {
     ll_node *curr = head;
-    if (curr == NULL) return NULL;
+    if (curr == NULL) {
+        return NULL;
+    }
 
-    while (curr != NULL && curr->next!= NULL) {
+    while (curr != NULL && curr->next != NULL) {
         curr = curr->next;
     }
 
@@ -40,7 +45,9 @@ ll_node *ll_pop(ll_node *head) {
     ll_node *prev = head;
     ll_node *curr = head->next;
 
-    if (curr == NULL) return NULL;
+    if (curr == NULL) {
+        return NULL;
+    }
 
     while(curr->next != NULL) {
         prev = curr;
@@ -53,7 +60,7 @@ ll_node *ll_pop(ll_node *head) {
 
 char *ll_get(ll_node *head, int n) {
     ll_node *curr = head;
-    for ( int i = 0; i < n && curr != NULL; i++ ) {
+    for ( int i = 0; i < n && curr->next != NULL; i++ ) {
         curr = curr->next;
     }
     return curr->data;

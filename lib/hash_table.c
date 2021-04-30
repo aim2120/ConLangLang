@@ -171,6 +171,10 @@ hashtable_t *ht_set( hashtable_t *hashtable, char *key, char *value ) {
 
         newpair = ht_newpair( key, value );
 
+        if ( newpair == NULL ) {
+            return NULL;
+        }
+
         /* We're at the start of the linked list in this bin. */
         if( next == hashtable->table[ bin ] ) {
             newpair->next = next;

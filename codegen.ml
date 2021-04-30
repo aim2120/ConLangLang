@@ -145,6 +145,10 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let strcpy_func   : L.llvalue = declare_func ("strcpy", string_t, [|string_t; string_t|]) false in
     let strcat_func   : L.llvalue = declare_func ("strcat", string_t, [|string_t; string_t|]) false in
     let strlen_func   : L.llvalue = declare_func ("strlen", i64_t, [|string_t;|]) false in
+    let debug_str_format1 = L.build_global_stringptr "DEBUG STR %s\n" "fmt" builder in
+    let debug_str_format2 = L.build_global_stringptr "DEBUG NODE %s\n" "fmt" builder in
+    let debug_i32_format = L.build_global_stringptr "DEBUG i32 %d\n" "fmt" builder in
+    let debug_lu_format = L.build_global_stringptr "DEBUG LU %lu\n" "fmt" builder in
     let str_format = L.build_global_stringptr "%s\n" "fmt" builder in
     let i32_format = L.build_global_stringptr "%d" "fmt" builder in
     let float_format = L.build_global_stringptr "%f" "fmt" builder in
@@ -199,6 +203,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         let make_addr (e : L.llvalue) (t : L.lltype) (malloc : bool) (builder : L.llbuilder) =
             let addr = if malloc then L.build_malloc t "" builder else L.build_alloca t "" builder
             in
+            (if L.is_null addr then raise (Failure "malloc failed") else ());
             ignore(L.build_store e addr builder);
             addr
             (*
@@ -266,11 +271,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         | SStrLit(s) ->
             let prefix = "s" in
             let len = String.length s + 1 in
-            let addr = L.build_array_malloc i8_t (L.const_int i8_t len) "string" builder in
+            let addr = L.build_array_malloc i8_t (L.const_int i32_t len) "string" builder in
+            (if L.is_null addr then raise (Failure "malloc failed") else ());
             let store_char i c =
                 let i' = string_of_int i in
                 let c' = Char.code c in
-                let addr_i = L.build_in_bounds_gep addr [|L.const_int i8_t i|] (prefix ^ i') builder in
+                let addr_i = L.build_in_bounds_gep addr [|L.const_int i32_t i|] (prefix ^ i') builder in
                 ignore(L.build_store (L.const_int i8_t c') addr_i builder);
             in
             String.iteri store_char (s ^ "\x00");
@@ -280,10 +286,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let ltyp = ltyp_of_typ t in
 
             let addr = L.build_malloc list_t "list" builder in
+            (if L.is_null addr then raise (Failure "malloc failed") else ());
             let addr_ltyp = L.build_in_bounds_gep addr [|zero;zero|] "listltyp" builder in
             let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" builder in
 
             let null_t = L.build_malloc ltyp "null" builder in
+            (if L.is_null null_t then raise (Failure "malloc failed") else ());
             ignore(L.build_store (L.const_null ltyp) null_t builder);
             ignore(L.build_store null_t addr_ltyp builder);
 
@@ -295,6 +303,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let data = make_addr first' ltyp true builder in
             let c_data = L.build_bitcast data string_t "cdata0" builder in
             let first_node = L.build_call ll_create_func [|c_data|] "node0" builder in
+            (if L.is_null first_node then raise (Failure "malloc failed") else ());
             ignore(L.build_store first_node addr_head builder);
 
             let add_node (builder, last_node, i) e =
@@ -303,6 +312,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 let data = make_addr e' ltyp true builder in
                 let c_data = L.build_bitcast data string_t ("cdata" ^ i') builder in
                 let addr = L.build_call ll_push_func [|last_node; c_data|] ("node" ^ i') builder in
+                (if L.is_null addr then raise (Failure "malloc failed") else ());
                 (builder, addr, i+1)
             in
             let (builder, _, _) = List.fold_left add_node (builder, first_node, 1) the_rest in
@@ -312,10 +322,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let ltyp1 = ltyp_of_typ t1 in
             let ltyp2 = ltyp_of_typ t2 in
             let addr = L.build_malloc dict_t "dict" builder in
+            (if L.is_null addr then raise (Failure "malloc failed") else ());
 
             (* dummy values so we know the actual types of the table *)
             let null_t1 = L.build_malloc ltyp1 "nullt1" builder in
+            (if L.is_null null_t1 then raise (Failure "malloc failed") else ());
             let null_t2 = L.build_malloc ltyp2 "nullt2" builder in
+            (if L.is_null null_t2 then raise (Failure "malloc failed") else ());
             let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" builder in
             let addr_t2 = L.build_in_bounds_gep addr [|zero; one|] "dictt2" builder in
             ignore(L.build_store (L.const_null ltyp1) null_t1 builder);
@@ -325,6 +338,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
             (* create dict *)
             let ht =  L.build_call ht_create_func [|L.const_int i32_t (List.length d)|] "tbl" builder in
+            (if L.is_null ht then raise (Failure "malloc failed") else ());
             let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" builder in
             ignore(L.build_store ht addr_ht builder);
 
@@ -338,7 +352,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 let v_data = make_addr v' ltyp2 true builder in
                 let c_k_data = L.build_bitcast k_data string_t ("ckdata" ^ i') builder in
                 let c_v_data = L.build_bitcast v_data string_t ("cvdata" ^ i') builder in
-                ignore(L.build_call ht_set_func [|ht;c_k_data;c_v_data|] "" builder);
+                let ht = L.build_call ht_set_func [|ht;c_k_data;c_v_data|] "" builder in
+                (if L.is_null ht then raise (Failure "malloc failed") else ());
                 (builder, i+1)
             in
             let (builder, _) = List.fold_left add_pair (builder, 0) d' in
@@ -387,6 +402,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                         let len2 = L.build_call strlen_func [|e2'|] "e2len" builder in
                         let len = L.build_add len1 len2 "len" builder in
                         let out_addr = L.build_array_malloc i8_t len "out" builder in
+                        (if L.is_null out_addr then raise (Failure "malloc failed") else ());
                         let out_addr = L.build_call strcpy_func [|out_addr; e1'|] "cpy" builder in
                         let out_addr = L.build_call strcat_func [|out_addr; e2'|] "cat" builder in
                         out_addr
@@ -505,6 +521,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let c_v_data = L.build_bitcast v_data string_t "cvdata" function_builder in
                     let ht = L.build_load addr_ht "ht" function_builder in
                     let ht' = L.build_call ht_set_func [|ht;c_k_data;c_v_data|] "ht_" function_builder in
+                    (if L.is_null ht' then raise (Failure "malloc failed") else ());
                     ignore(L.build_store ht' addr_ht function_builder);
                     ignore(L.build_ret addr function_builder);
                     func
