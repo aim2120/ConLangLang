@@ -1,5 +1,9 @@
 #!/bin/zsh
 
+red=`tput setaf 1`
+green=`tput setaf 2`
+reset=`tput sgr0`
+
 src_dir="test"
 build_dir="cll_build"
 
@@ -35,9 +39,9 @@ for t in ./$src_dir/*.cll; do
         echo $progoutput > $outputfile
         outputfilecheck="${src_dir}/${filename}.out"
         if cmp -s $outputfile $outputfilecheck; then
-            echo "${to_stdout} passed"
+            echo "${green}${to_stdout} passed${reset}"
         else
-            echo "!!!${to_stdout} output failed!!!"
+            echo "${red}!!!${to_stdout} output failed!!!${reset}"
         fi
         output+="${fileoutput}\n"
     else

@@ -145,8 +145,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let strcpy_func   : L.llvalue = declare_func ("strcpy", string_t, [|string_t; string_t|]) false in
     let strcat_func   : L.llvalue = declare_func ("strcat", string_t, [|string_t; string_t|]) false in
     let strlen_func   : L.llvalue = declare_func ("strlen", i64_t, [|string_t;|]) false in
-    let debug_str_format1 = L.build_global_stringptr "DEBUG STR %s\n" "fmt" builder in
-    let debug_str_format2 = L.build_global_stringptr "DEBUG NODE %s\n" "fmt" builder in
+    let debug_str_format = L.build_global_stringptr "DEBUG %s\n" "fmt" builder in
+    let debug_str_format1 = L.build_global_stringptr "DEBUG 1 %s\n" "fmt" builder in
+    let debug_str_format2 = L.build_global_stringptr "DEBUG 2 %s\n" "fmt" builder in
     let debug_i32_format = L.build_global_stringptr "DEBUG i32 %d\n" "fmt" builder in
     let debug_lu_format = L.build_global_stringptr "DEBUG LU %lu\n" "fmt" builder in
     let str_format = L.build_global_stringptr "%s\n" "fmt" builder in
@@ -420,7 +421,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             in
             (builder, out)
         | SFunCall((_,SId("lget")), [(_, l); (_,n)]) ->
-            (* TODO: WHY DOES THIS SOMETIMES RETURN NULL *)
             let (builder, addr) = expr parent_func builder l in
             let (builder, n') = expr parent_func builder n in
             let f_name = "lget" ^ (str_of_ltyp (L.type_of addr)) in
@@ -454,7 +454,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let data_load = L.build_call func [|addr;n'|] "lget" builder in
             (builder, data_load)
         | SFunCall((_,SId("dget")), [(_, dict); (_,k)]) ->
-            (* TODO: WHY DOES THIS SOMETIMES SEGFAULT? *)
             let (builder, addr) = expr parent_func builder dict in
             let (builder, k') = expr parent_func builder k in
             let f_name = "dget" ^ (str_of_ltyp (L.type_of addr)) in
@@ -482,6 +481,10 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let c_k_data = L.build_bitcast k_data string_t "ckdata" function_builder in
                     let ht = L.build_load addr_ht "ht" function_builder in
                     let c_v_data = L.build_call ht_get_func [|ht;c_k_data|] "cvdata" function_builder in
+                    (*
+                     * TODO: make cond branch if return value is null (key not found)
+                    let is_null = L.build_is_null c_v_data "is_null" function_builder in
+                    *)
                     let v_data = L.build_bitcast c_v_data (L.type_of ltyp2_ptr) "vdata" function_builder in
                     let v_data_load = L.build_load v_data "vdataload" function_builder in
                     ignore(L.build_ret v_data_load function_builder);
