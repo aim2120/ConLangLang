@@ -101,15 +101,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 Hashtbl.add dict_types dict_name dict_t;
                 dict_t
             ))
-        (*
-        | A.UserTyp(ut)  -> let (_, at) = StringMap.find ut env.tsym in ltype_of_typ at
-        *)
         | A.Fun(f,t) ->
             let ltyp = ltyp_of_typ t in
             let f_typs = Array.of_list (List.map ltyp_of_typ f) in
             (L.pointer_type (L.function_type ltyp f_typs))
         | _        -> raise (Failure ("type" ^ not_impl))
-(*
+(* TODO
+        | A.UserTyp(ut)  -> let (_, at) = StringMap.find ut env.tsym in ltype_of_typ at
         | A.Regex  ->
         | A.Fun(f,t)  ->
         | A.UserTypDef(u) ->
@@ -207,15 +205,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             (if L.is_null addr then raise (Failure "malloc failed") else ());
             ignore(L.build_store e addr builder);
             addr
-            (*
-            match (L.classify_value e) with
-                L.ValueKind.Instruction(_) -> e
-                | _ ->
-                    let addr = if malloc then L.build_malloc t "" builder else L.build_alloca t "" builder
-                    in
-                    ignore(L.build_store e addr builder);
-                    addr
-                    *)
         in
         let make_func f_name formals_typs_and_names ret_typ =
             let formals_arr = Array.of_list (List.map (fun (t,_) -> t) formals_typs_and_names) in
@@ -234,25 +223,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             List.iter2 make_param params formals_typs_and_names;
             Hashtbl.add func_locals_tbl f_name func_locals;
             (func, function_builder)
-            (*
-            let f_name = "fun" ^ (string_of_int !fun_name_i) in
-            fun_name_i := !fun_name_i + 1;
-            let ltyp = ltyp_of_typ f.sftyp in
-            let formals_arr = Array.of_list (List.map (fun (t,_) -> ltyp_of_typ t) f.sformals) in
-            let func_typ = L.function_type ltyp formals_arr in
-            let func = L.define_function f_name func_typ the_module in
-
-            let function_builder = L.builder_at_end context (L.entry_block func) in
-            let params = Array.to_list (L.params func) in
-            let make_param func_locals p (t,n) =
-                L.set_value_name n p;
-                let addr = L.build_alloca (ltyp_of_typ t) "" function_builder in
-                ignore(L.build_store p addr function_builder);
-                (n, addr)::func_locals
-            in
-            let func_locals = List.fold_left2 make_param [] params f.sformals in
-            Hashtbl.add func_locals_tbl f_name func_locals;
-            *)
         in
 
         let load_if_complex e t builder =
@@ -410,7 +380,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                         out_addr
                     | _ -> raise (Failure err)
                 )
-                (*
+                (* TODO
                 | A.List -> (match o with
                     A.Concat ->
                     | _ -> raise (Failure err)
@@ -636,28 +606,10 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let formals_typs_and_names = List.map (fun (t,n) -> (ltyp_of_typ t, n)) f.sformals in
             let ret_typ = ltyp_of_typ f.sftyp in
             let (func, function_builder) = make_func f_name formals_typs_and_names ret_typ in
-            (*
-            let func_typ = L.function_type ltyp formals_arr in
-            let func = L.define_function f_name func_typ the_module in
-
-            let function_builder = L.builder_at_end context (L.entry_block func) in
-
-            let params = Array.to_list (L.params func) in
-            let make_param func_locals p (t,n) =
-                L.set_value_name n p;
-                let addr = L.build_alloca (ltyp_of_typ t) "" function_builder in
-                ignore(L.build_store p addr function_builder);
-                (n, addr)::func_locals
-            in
-            let func_locals = List.fold_left2 make_param [] params f.sformals in
-            Hashtbl.add func_locals_tbl f_name func_locals;
-            *)
-
             let (_, function_builder, function_out) = List.fold_left stmt (func, function_builder, zero) f.sfblock in
             ignore(L.build_ret function_out function_builder);
             (builder, func)
         | SFunCall((typlist,e), l) ->
-            (* let (builder, func) = expr parent_func builder f *)
             let make_actuals (builder, actuals) (_, e) =
                 let (builder, e') = expr parent_func builder e in
                 (builder, e'::actuals)
@@ -668,10 +620,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let out = L.build_call func actuals_arr "funcall" builder in
             (builder, out)
         | _ -> raise (Failure ("expr" ^ not_impl))
-        (*
-        *)
-        (*
-        | SReLit(r) -> L.const_string context r
+        (* TODO
+        | SReLit(r) -> ()
         | SNullExpr -> ()
         | SUnop(o, e) -> ()
         | SChildAcc(e, s) -> ()
