@@ -3,7 +3,7 @@ typedef struct entry_s entry_t;
 struct hashtable_s;
 typedef struct hashtable_s hashtable_t;
 
-hashtable_t *ht_create( int );
+hashtable_t *ht_create( int, bool );
 hashtable_t *ht_grow( hashtable_t * );
 void ht_delete( hashtable_t * );
 int ht_hash( hashtable_t *, char * );

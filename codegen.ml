@@ -49,7 +49,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ht_entry = L.named_struct_type context "entry_s"
     in L.struct_set_body ht_entry [|string_t; string_t; L.pointer_type ht_entry|] false;
     let ht_t = L.named_struct_type context "hashtable_s"
-    in L.struct_set_body ht_t [|i32_t; i32_t; L.pointer_type (L.pointer_type ht_entry)|] false;
+    in L.struct_set_body ht_t [|i32_t; i32_t; L.pointer_type (L.pointer_type ht_entry); i1_t|] false;
 
     (* convenient numbers/strings *)
     let zero = L.const_int i32_t 0 in
@@ -181,7 +181,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ht_get     = "ht_get" in
     let ht_print   = "ht_print" in
     let ht_defs = [
-        (ht_create, (L.pointer_type ht_t), [|i32_t|]);
+        (ht_create, (L.pointer_type ht_t), [|i32_t; i1_t|]);
         (ht_hash, i32_t, [|(L.pointer_type ht_t); string_t|]);
         (ht_newpair, (L.pointer_type ht_entry), [|string_t; string_t|]);
         (ht_get, string_t, [|(L.pointer_type ht_t); string_t|]);
@@ -337,7 +337,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ignore(L.build_store null_t2 addr_t2 builder);
 
             (* create dict *)
-            let ht =  L.build_call ht_create_func [|L.const_int i32_t (List.length d)|] "tbl" builder in
+            let key_is_string = match t1 with A.String -> 1 | _ -> 0 in
+            let ht =  L.build_call ht_create_func [|L.const_int i32_t (List.length d);L.const_int i1_t key_is_string|] "tbl" builder in
             (if L.is_null ht then raise (Failure "malloc failed") else ());
             let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" builder in
             ignore(L.build_store ht addr_ht builder);

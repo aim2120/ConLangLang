@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <limits.h>
 #include <string.h>
+#include <stdbool.h>
 #include "hash_table.h"
 #include "find_prime.h"
 
@@ -29,13 +30,14 @@ struct hashtable_s {
     int size;
     int filled;
     struct entry_s **table;
+    bool key_is_string;
 };
 
 typedef struct hashtable_s hashtable_t;
 
 
 /* Create a new hashtable. */
-hashtable_t *ht_create( int size ) {
+hashtable_t *ht_create( int size, bool key_is_string ) {
 
     hashtable_t *hashtable = NULL;
     int i;
@@ -59,6 +61,7 @@ hashtable_t *ht_create( int size ) {
 
     hashtable->filled = 0;
     hashtable->size = size;
+    hashtable->key_is_string = key_is_string;
 
     return hashtable;
 }
@@ -66,12 +69,11 @@ hashtable_t *ht_create( int size ) {
 /* Copy old table into new larger table */
 hashtable_t *ht_grow( hashtable_t *hashtable ) {
     int new_size;
-    printf("growing table\n");
 
     new_size = hashtable->filled;
     new_size = find_prime(new_size * 2);
 
-    hashtable_t* new_hashtable = ht_create(new_size);
+    hashtable_t* new_hashtable = ht_create(new_size, hashtable->key_is_string);
 
     for (int i = 0; i < hashtable->size; i++) {
         entry_t *pair = hashtable->table[i];
@@ -148,6 +150,7 @@ entry_t *ht_newpair( char *key, char *value ) {
 /* Insert a key-value pair into a hash table. */
 hashtable_t *ht_set( hashtable_t *hashtable, char *key, char *value ) {
     int bin = 0;
+    bool kis = hashtable->key_is_string;
     entry_t *newpair = NULL;
     entry_t *next = NULL;
     entry_t *last = NULL;
@@ -156,13 +159,34 @@ hashtable_t *ht_set( hashtable_t *hashtable, char *key, char *value ) {
 
     next = hashtable->table[ bin ];
 
-    while( next != NULL && next->key != NULL && memcmp( key, next->key, 1 ) != 0 ) {
+    char **key_ptr;
+    char *key_;
+    char **nextkey_ptr;
+    char *nextkey_;
+
+    if (kis) {
+        key_ptr = (char **) key;
+        key_ = *key_ptr;
+    }
+
+    bool addr_cmp, str_cmp = false;
+    while( next != NULL && next->key != NULL ) {
+        addr_cmp = memcmp( key, next->key, 1) == 0;
+        if (kis) {
+            nextkey_ptr = (char **) (next->key);
+            nextkey_ = *nextkey_ptr;
+            str_cmp = strcmp( key_, nextkey_ ) == 0;
+        }
+        if (addr_cmp || str_cmp) {
+            break;
+        }
+
         last = next;
         next = next->next;
     }
 
     /* There's already a pair.  Let's replace that string. */
-    if( next != NULL && next->key != NULL && memcmp( key, next->key, 1 ) != 0 ) {
+    if( next != NULL && next->key != NULL || (addr_cmp || str_cmp) ) {
 
         memcpy( next->value, value, sizeof( char * ) );
 
@@ -202,18 +226,42 @@ hashtable_t *ht_set( hashtable_t *hashtable, char *key, char *value ) {
 /* Retrieve a key-value pair from a hash table. */
 char *ht_get( hashtable_t *hashtable, char *key ) {
     int bin = 0;
+    bool kis = hashtable->key_is_string;
     entry_t *pair;
 
     bin = ht_hash( hashtable, key );
 
     /* Step through the bin, looking for our value. */
     pair = hashtable->table[ bin ];
-    while( pair != NULL && pair->key != NULL && memcmp( key, pair->key, 1 ) != 0 ) {
+
+    char **key_ptr;
+    char *key_;
+    char **pairkey_ptr;
+    char *pairkey_;
+
+    if (kis) {
+        key_ptr = (char **) key;
+        key_ = *key_ptr;
+    }
+
+    bool addr_cmp, str_cmp = false;
+
+    while( pair != NULL && pair->key != NULL ) {
+        if (kis) {
+            pairkey_ptr = (char **) (pair->key);
+            pairkey_ = *pairkey_ptr;
+            str_cmp = strcmp( key_, pairkey_ ) == 0;
+        }
+        addr_cmp = memcmp( key, pair->key, 1) == 0;
+        if (addr_cmp || str_cmp) {
+            break;
+        }
+
         pair = pair->next;
     }
 
     /* Did we actually find anything? */
-    if( pair == NULL || pair->key == NULL || memcmp( key, pair->key , 1 ) != 0 ) {
+    if( pair == NULL || pair->key == NULL || !(addr_cmp || str_cmp) ) {
         return NULL;
 
     } else {

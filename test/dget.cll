@@ -1,8 +1,10 @@
+a = 'a';
 d1 = <int,int>{0:0, 1:1, 2:2};
 d2 = <string,string>{'a':'A', 'b':'B', 'c':'C'};
 x = dget(d1,0);
 dprint(d2);
 sprint(tostring(x));
 ## TODO: WHY DOES THIS SEGFAULT
-##y = dget(d2,'a');
-##sprint(y);
+d2 = dset(d2, 'd', 'D');
+y = dget(d2,'a');
+sprint(y);
