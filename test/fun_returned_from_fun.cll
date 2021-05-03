@@ -4,4 +4,4 @@ f = <:fun<int:int>>{
     };
 };
 f2 = f();
-sprint(tostring(f2(2)));
+sprint((string)(f2(2)));

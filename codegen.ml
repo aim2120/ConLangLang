@@ -27,8 +27,10 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let the_module = L.create_module context "ConLangLang" in
 
     (* to store different types of lists/dicts *)
-    let list_types = Hashtbl.create 10 in
-    let dict_types = Hashtbl.create 10 in
+    let list_typs = Hashtbl.create 10 in
+    let dict_typs = Hashtbl.create 10 in
+    let utd_typs  = Hashtbl.create 10 in
+    let ut_typs   = Hashtbl.create 10 in
     let fun_name_i :int ref = ref 0 in
 
     (* Get types from the context *)
@@ -75,12 +77,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let ltyp = ltyp_of_typ t in
             let ltyp_s = str_of_ltyp ltyp in
             let list_name = "list" ^ ltyp_s in
-            L.pointer_type (if Hashtbl.mem list_types list_name then
-                Hashtbl.find list_types list_name
+            L.pointer_type (if Hashtbl.mem list_typs list_name then
+                Hashtbl.find list_typs list_name
             else (
                 let list_t = L.named_struct_type context list_name in
                 L.struct_set_body list_t [|(L.pointer_type ltyp); (L.pointer_type ll_node)|] false;
-                Hashtbl.add list_types list_name list_t;
+                Hashtbl.add list_typs list_name list_t;
                 list_t
             ))
         | A.Dict(t1,t2) ->
@@ -93,24 +95,24 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let ltyp2 = ltyp_of_typ t2 in
             let ltyp_s = (str_of_ltyp ltyp1) ^ (str_of_ltyp ltyp2) in
             let dict_name = "dict" ^ ltyp_s in
-            L.pointer_type (if Hashtbl.mem dict_types dict_name then
-                Hashtbl.find dict_types dict_name
+            L.pointer_type (if Hashtbl.mem dict_typs dict_name then
+                Hashtbl.find dict_typs dict_name
             else (
                 let dict_t = L.named_struct_type context dict_name in
                 L.struct_set_body dict_t [|(L.pointer_type ltyp1); (L.pointer_type ltyp2); (L.pointer_type ht_t)|] false;
-                Hashtbl.add dict_types dict_name dict_t;
+                Hashtbl.add dict_typs dict_name dict_t;
                 dict_t
             ))
         | A.Fun(f,t) ->
             let ltyp = ltyp_of_typ t in
             let f_typs = Array.of_list (List.map ltyp_of_typ f) in
             (L.pointer_type (L.function_type ltyp f_typs))
+        | A.UserTyp(ut)  -> Hashtbl.find ut_typs ut
+        | A.UserTypDef(utd) -> Hashtbl.find utd_typs utd
         | _        -> raise (Failure ("type" ^ not_impl))
 (* TODO
-        | A.UserTyp(ut)  -> let (_, at) = StringMap.find ut env.tsym in ltype_of_typ at
         | A.Regex  ->
         | A.Fun(f,t)  ->
-        | A.UserTypDef(u) ->
 *)
     in
 
@@ -520,6 +522,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let ht = L.build_load addr_ht "ht" builder in
             let out = L.build_call ht_print_func [|ht|] "printdict" builder in
             (builder, out)
+            (*
         | SFunCall((_,SId("tostring")), [(_,e)]) ->
             let (builder, e') = expr parent_func builder e in
             let to_string fmt =
@@ -537,6 +540,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 else raise (Failure ((L.string_of_lltype t) ^ not_impl))
             in
             (builder, str)
+            *)
         | SAssign(v, (_,e)) ->
             let (builder, e') = expr parent_func builder e in
             Hashtbl.add var_tbl v e';
@@ -619,23 +623,72 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let actuals_arr = Array.of_list (List.rev actuals) in
             let out = L.build_call func actuals_arr "funcall" builder in
             (builder, out)
+        | SCast(t, (_,e)) ->
+            let (builder, e') = expr parent_func builder e in
+            let to_string fmt =
+                let len = L.build_call snprintf_func [|L.const_null string_t;zero;fmt;e'|] "" builder
+                in
+                let len = L.build_add len one "" builder in
+                let addr = L.build_array_malloc i8_t len "strcast" builder in
+                ignore(L.build_call snprintf_func [|addr;len;fmt;e'|] "" builder);
+                addr
+            in
+            let e_ltyp = L.type_of e' in
+            let c_ltyp = ltyp_of_typ (List.hd t) in
+            let e_cast =
+                if c_ltyp = i32_t then (
+                    if e_ltyp = float_t then
+                        L.build_fptosi e' c_ltyp "intcast" builder
+                    else e'
+                )
+                else if c_ltyp = float_t then (
+                    if e_ltyp = i32_t then
+                        L.build_sitofp e' c_ltyp "floatcast" builder
+                    else e'
+                )
+                else if c_ltyp = string_t then (
+                    if e_ltyp = i32_t then
+                        to_string i32_format
+                    else if e_ltyp = i1_t then
+                        to_string i32_format
+                    else if e_ltyp = float_t then
+                        to_string float_format
+                    else e'
+                ) else (
+                    e'
+                )
+            in
+            (builder, e_cast)
         | _ -> raise (Failure ("expr" ^ not_impl))
         (* TODO
         | SReLit(r) -> ()
         | SNullExpr -> ()
         | SUnop(o, e) -> ()
         | SChildAcc(e, s) -> ()
-        | SCast(t, e) -> ()
         | STypDefAssign(t, v, l) -> ()
         | SMatch(m) -> ()
         | SUTDId(v) -> ()
         | SExpr(e) -> ()
                     *)
-    and stmt (func, builder, _) = function
+    and stmt (func, builder, out) = function
         SExprStmt(e) ->
-            let (builder', out) = expr func builder (snd e) in
-            (func, builder', out)
+            let (builder', out') = expr func builder (snd e) in
+            (func, builder', out')
+        | STypDecl(v, l) ->
+            let make_typ (n, t) =
+                Hashtbl.add ut_typs n (ltyp_of_typ t);
+            in
+            List.iter make_typ l;
+            (func, builder, out)
+        | STypDefDecl(v, l) ->
+            let td = L.named_struct_type context v in
+            let arr = Array.of_list (List.map (fun (t,_) -> ltyp_of_typ t) l) in
+            L.struct_set_body td arr false;
+            Hashtbl.add utd_typs v td;
+            (func, builder, out)
+        (* TODO
         | _      -> raise (Failure ("stmt" ^ not_impl))
+        *)
     in
     let (_, builder, _) = List.fold_left stmt (main, builder, zero) sast in
     ignore(L.build_ret (L.const_int i32_t 0) builder);

@@ -1,2 +1,2 @@
 d = <int,int>{0:0,1:1,2:2,3:3};
-sprint(tostring(dget(d,1)));
+sprint((string)(dget(d,1)));

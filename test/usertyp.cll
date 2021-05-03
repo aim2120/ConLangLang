@@ -1,0 +1,4 @@
+type t = { Foo<string>, Bar<int> };
+a = (Foo) 'hello';
+b = (Bar) 5;
+sprint((string)a ^ (string)b);

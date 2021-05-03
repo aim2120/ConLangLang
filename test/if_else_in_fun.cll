@@ -5,4 +5,4 @@ f = <:int>{
         0;
     };
 };
-sprint(tostring(f()));
+sprint((string)(f()));

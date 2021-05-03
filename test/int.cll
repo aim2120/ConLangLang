@@ -1,1 +1,1 @@
-sprint(tostring(0));
+sprint((string)0);

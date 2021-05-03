@@ -1,0 +1,4 @@
+x = (float) 5;
+sprint((string)x);
+x = (float) 5.0;
+sprint((string)x);

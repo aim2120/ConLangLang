@@ -31,7 +31,7 @@ for t in ./$src_dir/*.cll; do
 
     filename=${t%.cll}
     filename=${filename##*/}
-    output+="$(./bin/make_exe.zsh $filename)"
+    output+="$(./bin/make_test_exe.zsh $filename)"
 
     if test -f "./${build_dir}/${filename}"; then
         progoutput="$(./${build_dir}/${filename})"
@@ -45,7 +45,7 @@ for t in ./$src_dir/*.cll; do
         fi
         output+="${fileoutput}\n"
     else
-        echo "!!!${to_stdout} make_exe failed!!!"
+        echo "!!!${to_stdout} make_test_exe failed!!!"
     fi
 
     output+="***********************************"

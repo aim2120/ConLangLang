@@ -1,10 +1,10 @@
 x = 888;
 y = 999;
 f = <int x:int> {
-    sprint(tostring(x));
+    sprint((string)x);
     444;
 };
 z = f(y);
-sprint(tostring(x));
-sprint(tostring(y));
-sprint(tostring(z));
+sprint((string)x);
+sprint((string)y);
+sprint((string)z);

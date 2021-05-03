@@ -52,9 +52,6 @@ let check_ast ast =
             ("sprint", [String], Int);
             ("lprint", [List(String)], Int);
             ("dprint", [Dict(String,String)], Int);
-            ("tostring", [Int], String);
-            ("tostring", [Bool], String);
-            ("tostring", [Float], String);
             ("lget", [List(String); (Int)], String);
             ("dget", [Dict(String,String); String], String);
             ("dset", [Dict(String,String); String; String], Dict(String,String));

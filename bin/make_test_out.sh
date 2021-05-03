@@ -6,7 +6,7 @@ reset=`tput sgr0`
 for t in ./test/*.cll; do
     filename=${t%.cll}
     filename=${filename##*/}
-    ./bin/make_exe.zsh $filename
+    ./bin/make_test_exe.zsh $filename
     echo "**********************************"
     echo "MAKING OUTPUT FOR ${filename}"
     outfile="test/${filename}.out"
