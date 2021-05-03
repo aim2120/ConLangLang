@@ -27,10 +27,10 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let the_module = L.create_module context "ConLangLang" in
 
     (* to store different types of lists/dicts *)
-    let list_typs = Hashtbl.create 10 in
-    let dict_typs = Hashtbl.create 10 in
-    let utd_typs  = Hashtbl.create 10 in
-    let ut_typs   = Hashtbl.create 10 in
+    let list_typs : (string, L.lltype) Hashtbl.t = Hashtbl.create 10 in
+    let dict_typs : (string, L.lltype) Hashtbl.t = Hashtbl.create 10 in
+    let ut_typs   : (string, L.lltype) Hashtbl.t = Hashtbl.create 10 in
+    let utd_typs = Hashtbl.create 10 in
     let fun_name_i :int ref = ref 0 in
 
     (* Get types from the context *)
@@ -108,7 +108,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let f_typs = Array.of_list (List.map ltyp_of_typ f) in
             (L.pointer_type (L.function_type ltyp f_typs))
         | A.UserTyp(ut)  -> Hashtbl.find ut_typs ut
-        | A.UserTypDef(utd) -> Hashtbl.find utd_typs utd
+        | A.UserTypDef(utd) -> L.pointer_type (fst (Hashtbl.find utd_typs utd))
         | _        -> raise (Failure ("type" ^ not_impl))
 (* TODO
         | A.Regex  ->
@@ -564,6 +564,10 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 )
             in
             (builder, e')
+
+        | SUTDId(v) ->
+            let e' = Hashtbl.find var_tbl v in
+            (builder, e')
         | SIfElse(i) ->
             let (builder, cond) = expr parent_func builder (snd i.sicond) in
             let merge_bb = L.append_block context "merge" parent_func in
@@ -659,15 +663,28 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 )
             in
             (builder, e_cast)
+        | STypDefAssign(t, v, l) ->
+            let (utd_typ, name_pos) = Hashtbl.find utd_typs t in
+            let name = match L.struct_name utd_typ with Some n -> n | None -> "utd" in
+            let addr = L.build_alloca utd_typ (name ^ v) builder in
+            let fill_struct builder (n, (_,e)) =
+                let (builder, e') = expr parent_func builder e in
+                let pos = Hashtbl.find name_pos n in
+                let addr_pos = L.build_in_bounds_gep addr [|zero;L.const_int i32_t pos|] ("tdassign_" ^ n) builder
+                in
+                ignore(L.build_store e' addr_pos builder);
+                builder
+            in
+            let builder = List.fold_left fill_struct builder l in
+            Hashtbl.add var_tbl v addr;
+            (builder, addr)
         | _ -> raise (Failure ("expr" ^ not_impl))
         (* TODO
         | SReLit(r) -> ()
         | SNullExpr -> ()
         | SUnop(o, e) -> ()
         | SChildAcc(e, s) -> ()
-        | STypDefAssign(t, v, l) -> ()
         | SMatch(m) -> ()
-        | SUTDId(v) -> ()
         | SExpr(e) -> ()
                     *)
     and stmt (func, builder, out) = function
@@ -683,8 +700,10 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         | STypDefDecl(v, l) ->
             let td = L.named_struct_type context v in
             let arr = Array.of_list (List.map (fun (t,_) -> ltyp_of_typ t) l) in
+            let name_pos : (string, int) Hashtbl.t = Hashtbl.create 10 in
+            List.iteri (fun i (_,n) -> Hashtbl.add name_pos n i) l;
             L.struct_set_body td arr false;
-            Hashtbl.add utd_typs v td;
+            Hashtbl.add utd_typs v (td, name_pos);
             (func, builder, out)
         (* TODO
         | _      -> raise (Failure ("stmt" ^ not_impl))

@@ -1,0 +1,5 @@
+typedef $X = { int i; string s; dict<int,int> d; };
+$X $x = { i = 0; s = 'hello'; d = <int,int>{}; };
+
+typedef $Y = { $X x; };
+$Y $y = { x = $x; };
