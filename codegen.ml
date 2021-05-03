@@ -68,7 +68,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         | A.Bool   -> i1_t
         | A.Float  -> float_t
         | A.String -> string_t
-        | A.Null   -> void_t
         | A.List(t)->
             (*
              * struct list { t1 *dummy; ll_node *head; }
@@ -112,8 +111,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         | A.UserTypDef(utd) -> L.pointer_type (fst (Hashtbl.find utd_typs utd))
         | _        -> raise (Failure ("type" ^ not_impl))
 (* TODO
+        | A.Null   -> void_t
         | A.Regex  ->
-        | A.Fun(f,t)  ->
 *)
     in
 
@@ -586,6 +585,46 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         | SUTDId(v) ->
             let e' = Hashtbl.find var_tbl v in
             (builder, e')
+        | SMatch(m) ->
+            let merge_bb = L.append_block context "merge" parent_func in
+            let build_br_merge = L.build_br merge_bb in
+            let out_addr = L.build_alloca (ltyp_of_typ m.smtyp) "out" builder in
+
+            let make_block (blocks, i) (_, block) =
+                let bb = L.append_block context ("block" ^ string_of_int i) parent_func in
+                let (_, bb_builder, bb_out) = List.fold_left stmt (parent_func, L.builder_at_end context bb, zero) block in
+                ignore(L.build_store bb_out out_addr bb_builder);
+                ignore(build_br_merge bb_builder);
+                (bb::blocks, i + 1)
+            in
+
+            let make_cond_block (blocks, i) (sexpr_or_def, _) then_block =
+                let cond_bb = L.append_block context ("cond" ^ string_of_int i) parent_func in
+                let cond_builder = L.builder_at_end context cond_bb in
+                ignore(match sexpr_or_def with
+                    SExprMatch e ->
+                        let (cond_builder, cond) = expr parent_func cond_builder (SBinop(e, A.Equal, m.sminput)) in
+                        ignore(L.build_cond_br cond then_block (List.hd blocks) cond_builder);
+                    | SDefaultExpr ->
+                        ignore(L.build_br then_block cond_builder);
+                );
+                (cond_bb::blocks, i - 1)
+            in
+
+            let cond_blocks = (match m.smatchlist with
+                SValMatchList(l)->
+                    let (blocks, _) = List.fold_left make_block ([], 0) l in
+                    (* blocks is in reverse order *)
+                    let (cond_blocks, _) = List.fold_left2 make_cond_block ([], (List.length blocks - 1)) (List.rev l) blocks
+                    in
+                    cond_blocks
+                | STypMatchList(l) -> raise (Failure not_impl)
+            ) in
+
+            ignore(L.build_br (List.hd cond_blocks) builder);
+            let builder = L.builder_at_end context merge_bb in
+            let out = L.build_load out_addr "matchout" builder in
+            (builder, out)
         | SIfElse(i) ->
             let (builder, cond) = expr parent_func builder (snd i.sicond) in
             let merge_bb = L.append_block context "merge" parent_func in
@@ -604,7 +643,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
             ignore(L.build_cond_br cond then_bb else_bb builder);
             let builder = L.builder_at_end context merge_bb in
-            let out = L.build_load out_addr "out_val" builder in
+            let out = L.build_load out_addr "ifelseout" builder in
             (builder, out)
         | SWhile(w) ->
             let ltyp = ltyp_of_typ w.swtyp in
@@ -624,7 +663,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let merge_bb = L.append_block context "merge" parent_func in
             ignore(L.build_cond_br cond body_bb merge_bb cond_builder);
             let builder = L.builder_at_end context merge_bb in
-            let out = L.build_load out_addr "out_val" builder in
+            let out = L.build_load out_addr "whileout" builder in
             (builder, out)
         | SFunLit(f) ->
             let f_name = "fun" ^ (string_of_int !fun_name_i) in
@@ -709,7 +748,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         (* TODO
         | SReLit(r) -> ()
         | SNullExpr -> ()
-        | SMatch(m) -> ()
         | SExpr(e) -> ()
                     *)
     and stmt (func, builder, out) = function

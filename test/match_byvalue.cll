@@ -1,0 +1,24 @@
+f = <int x:int>{
+    match:int (x) byvalue {
+        1 {
+            sprint('block one');
+            -1;
+        }
+        2 {
+            sprint('block two');
+            -2;
+        }
+        3 {
+            sprint('block three');
+            -3;
+        }
+        default {
+            sprint('block default');
+            0;
+        }
+    };
+};
+sprint((string)(f(1)));
+sprint((string)(f(2)));
+sprint((string)(f(3)));
+sprint((string)(f(4)));

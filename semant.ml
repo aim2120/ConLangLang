@@ -372,10 +372,10 @@ let check_ast ast =
             let (input_typlist, input_se, vsym) = check_expr env m.minput in
             let smatchlist = match m.matchlist with
                 ValMatchList(l) ->
-                    let rec find_default = function
-                        [] -> make_err "match block has no default block"
-                        | (e,_)::tl -> (match e with DefaultExpr -> () | _ -> find_default tl)
-                    in find_default l;
+                    let (last_e,_) = List.hd (List.rev l) in
+                    (match last_e with
+                        DefaultExpr -> ()
+                        | _ -> make_err "match block doesn't end with default block");
                     let check_block blocks (e_or_d, stmts) =
                         let (se_or_d, vsym') = match e_or_d with
                             ExprMatch(e) ->
