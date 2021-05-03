@@ -58,6 +58,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let one = L.const_int i32_t 1 in
     let two = L.const_int i32_t 2 in
     let not_impl = " not implemented" in
+    let internal_err = "internal error" in
 
     (* Return the LLVM type for a MicroC type *)
     let str_of_ltyp ltyp = List.hd (String.split_on_char ' ' (L.string_of_lltype ltyp))
@@ -341,7 +342,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             in
             let (builder, e1') = expr parent_func builder e1 in
             let (builder, e2') = expr parent_func builder e2 in
-            let err = "internal error" in
             let out = (match t with
                 A.Int -> (match o with
                       A.Add     -> L.build_add
@@ -352,7 +352,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     | A.Equal   -> L.build_icmp L.Icmp.Eq
                     | A.Greater -> L.build_icmp L.Icmp.Sgt
                     | A.Less    -> L.build_icmp L.Icmp.Slt
-                    | _ -> raise (Failure err)
+                    | _ -> raise (Failure internal_err)
                 ) e1' e2' "out" builder
                 | A.Float -> (match o with
                       A.Add     -> L.build_fadd
@@ -363,12 +363,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     | A.Equal   -> L.build_fcmp L.Fcmp.Oeq
                     | A.Greater -> L.build_fcmp L.Fcmp.Ogt
                     | A.Less    -> L.build_fcmp L.Fcmp.Olt
-                    | _ -> raise (Failure err)
+                    | _ -> raise (Failure internal_err)
                 ) e1' e2' "out" builder
                 | A.Bool -> (match o with
                       A.And -> L.build_and
                     | A.Or  -> L.build_or
-                    | _ -> raise (Failure err)
+                    | _ -> raise (Failure internal_err)
                 ) e1' e2' "out" builder
                 | A.String -> (match o with
                     A.Concat ->
@@ -380,15 +380,15 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                         let out_addr = L.build_call strcpy_func [|out_addr; e1'|] "cpy" builder in
                         let out_addr = L.build_call strcat_func [|out_addr; e2'|] "cat" builder in
                         out_addr
-                    | _ -> raise (Failure err)
+                    | _ -> raise (Failure internal_err)
                 )
                 (* TODO
                 | A.List -> (match o with
                     A.Concat ->
-                    | _ -> raise (Failure err)
+                    | _ -> raise (Failure internal_err)
                 )
                 *)
-                | _ -> raise (Failure err)
+                | _ -> raise (Failure internal_err)
             )
             in
             (builder, out)
@@ -665,7 +665,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             (builder, e_cast)
         | STypDefAssign(t, v, l) ->
             let (utd_typ, name_pos) = Hashtbl.find utd_typs t in
-            let name = match L.struct_name utd_typ with Some n -> n | None -> "utd" in
+            let name = match L.struct_name utd_typ with Some n -> n | None -> raise (Failure internal_err) in
             let addr = L.build_alloca utd_typ (name ^ v) builder in
             let fill_struct builder (n, (_,e)) =
                 let (builder, e') = expr parent_func builder e in
@@ -678,12 +678,20 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let builder = List.fold_left fill_struct builder l in
             Hashtbl.add var_tbl v addr;
             (builder, addr)
+        | SChildAcc((_,e), s) ->
+            let (builder, e') = expr parent_func builder e in
+            let utd_typ = L.element_type (L.type_of e') in
+            let name = match L.struct_name utd_typ with Some n -> n | None -> raise (Failure internal_err) in
+            let (_, name_pos) = Hashtbl.find utd_typs name in
+            let pos = Hashtbl.find name_pos s in
+            let addr_pos = L.build_in_bounds_gep e' [|zero;L.const_int i32_t pos|] (name ^ "." ^ s) builder in
+            let out = L.build_load addr_pos ("load" ^ s) builder in
+            (builder, out)
         | _ -> raise (Failure ("expr" ^ not_impl))
         (* TODO
         | SReLit(r) -> ()
         | SNullExpr -> ()
         | SUnop(o, e) -> ()
-        | SChildAcc(e, s) -> ()
         | SMatch(m) -> ()
         | SExpr(e) -> ()
                     *)

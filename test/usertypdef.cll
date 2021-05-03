@@ -1,5 +1,17 @@
 typedef $X = { int i; string s; dict<int,int> d; };
-$X $x = { i = 0; s = 'hello'; d = <int,int>{}; };
+$X x = { i = 5; s = 'hello'; d = <int,int>{}; };
+dofx = x.d;
+dset(dofx, 0, 0);
+
+f = <$X x:int>{
+    sprint((string)x.i);
+    sprint(x.s);
+    sprint((string)(dget(x.d,0)));
+};
+
+f(x);
 
 typedef $Y = { $X x; };
-$Y $y = { x = $x; };
+$Y y = { x = x; };
+
+f(y.x);

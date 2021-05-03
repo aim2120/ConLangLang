@@ -12,7 +12,7 @@ open Ast
 %token MATCH BYVAL BYTYP DEFAULT WHILE IF ELSE
 %token <int> INTLIT
 %token <bool> BOOLLIT
-%token <string> FLOATLIT STRLIT RELIT ID UTDID UT UTD
+%token <string> FLOATLIT STRLIT RELIT ID UT UTD
 %token EOF
 
 %start program
@@ -79,9 +79,8 @@ expr:
     | LPAREN typlist RPAREN expr { Cast(List.rev $2, $4) }
     | expr DOT ID { ChildAcc($1, $3) }
     | ID ASSIGN expr { Assign($1, $3) }
-    | UTD UTDID ASSIGN LCURLY initlist RCURLY { TypDefAssign($1, $2, $5) }
+    | UTD ID ASSIGN LCURLY initlist RCURLY { TypDefAssign($1, $2, $5) }
     | ID { Id($1) }
-    | UTDID { UTDId($1) }
     | expr LPAREN exprlist_opt RPAREN { FunCall($1, $3) }
     | MATCH COLON typ LPAREN expr RPAREN matchlist { Match({minput=$5; mtyp=$3; matchlist=$7;}) }
     | IF COLON typ LPAREN expr RPAREN LCURLY stmtblock RCURLY ELSE LCURLY stmtblock RCURLY { IfElse({icond=$5; ityp=$3; ifblock=(List.rev $8); elseblock=(List.rev $12);}) }

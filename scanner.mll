@@ -65,7 +65,6 @@ rule token = parse
 | '\'' [^ '\'']* '\'' as lxm { let s = List.hd (List.tl (String.split_on_char '\'' lxm)) in STRLIT(s) }
 | '"' [^ '"']* '"' as lxm { let s = List.hd (List.tl (String.split_on_char '"' lxm)) in RELIT(s) }
 | lowercase ['a'-'z' 'A'-'Z' '0'-'9' '_']*     as lxm { ID(lxm) }
-| '$' lowercase ['a'-'z' 'A'-'Z' '0'-'9' '_']* as lxm { UTDID(lxm) }
 | uppercase ['a'-'z' 'A'-'Z' '0'-'9' '_']*     as lxm { UT(lxm) }
 | '$' uppercase ['a'-'z' 'A'-'Z' '0'-'9' '_']* as lxm { UTD(lxm) }
 | eof { EOF }
