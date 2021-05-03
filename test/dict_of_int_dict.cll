@@ -6,5 +6,3 @@ d = <int, dict<string,string>>{
 };
 d_0 = dget(d,0);
 sprint(dget(d_0,a));
-
-##TODO: make literal string keys work

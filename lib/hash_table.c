@@ -155,7 +155,11 @@ hashtable_t *ht_set( hashtable_t *hashtable, char *key, char *value ) {
     entry_t *next = NULL;
     entry_t *last = NULL;
 
-    bin = ht_hash( hashtable, key );
+    char *to_hash = key;
+    if (kis) {
+        to_hash = *(char **)key;
+    }
+    bin = ht_hash( hashtable, to_hash );
 
     next = hashtable->table[ bin ];
 
@@ -229,7 +233,11 @@ char *ht_get( hashtable_t *hashtable, char *key ) {
     bool kis = hashtable->key_is_string;
     entry_t *pair;
 
-    bin = ht_hash( hashtable, key );
+    char *to_hash = key;
+    if (kis) {
+        to_hash = *(char **)key;
+    }
+    bin = ht_hash( hashtable, to_hash );
 
     /* Step through the bin, looking for our value. */
     pair = hashtable->table[ bin ];
@@ -271,15 +279,28 @@ char *ht_get( hashtable_t *hashtable, char *key ) {
 
 int ht_print (hashtable_t *hashtable) {
     int i = 0;
-    for (int i = 0; i < hashtable->size; i++) {
-        entry_t *pair = hashtable->table[i];
-        printf("(%d) ", i);
-        while ( pair != NULL) {
-            printf("%lu : ", (unsigned long) pair->key);
-            printf("%lu; ", (unsigned long) pair->value);
-            pair = pair->next;
+    if (hashtable->key_is_string) {
+        for (int i = 0; i < hashtable->size; i++) {
+            entry_t *pair = hashtable->table[i];
+            printf("(%d) ", i);
+            while ( pair != NULL) {
+                printf("%s : ", *(char**) pair->key);
+                printf("%lu; ", (unsigned long) pair->value);
+                pair = pair->next;
+            }
+            printf("\n");
         }
-        printf("\n");
+    } else {
+        for (int i = 0; i < hashtable->size; i++) {
+            entry_t *pair = hashtable->table[i];
+            printf("(%d) ", i);
+            while ( pair != NULL) {
+                printf("%lu : ", (unsigned long) pair->key);
+                printf("%lu; ", (unsigned long) pair->value);
+                pair = pair->next;
+            }
+            printf("\n");
+        }
     }
     return i;
 }
