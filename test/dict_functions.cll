@@ -1,0 +1,5 @@
+d = <int,int>{0:0};
+sprint((string)(dget(d,0)));
+d = dset(d, 1, 1);
+sprint((string)(dget(d,1)));
+sprint((string)(dsize(d)));

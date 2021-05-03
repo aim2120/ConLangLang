@@ -1,0 +1,15 @@
+match:bool (3.3) bytype {
+    float {
+        0;
+        true;
+    }
+    int {
+        0;
+        false;
+    }
+    default {
+        0;
+        false;
+    }
+};
+

@@ -305,6 +305,10 @@ int ht_print (hashtable_t *hashtable) {
     return i;
 }
 
+int ht_size (hashtable_t *hashtable) {
+    return hashtable->filled;
+}
+
 /*
 int main( int argc, char **argv ) {
 

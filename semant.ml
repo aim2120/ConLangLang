@@ -50,11 +50,14 @@ let check_ast ast =
     let built_in_funs =
         let l = [
             ("sprint", [String], Int);
+            ("ssize", [String], Int);
             ("lprint", [List(String)], Int);
-            ("dprint", [Dict(String,String)], Int);
             ("lget", [List(String); (Int)], String);
+            ("lsize", [List(String)], Int);
+            ("dprint", [Dict(String,String)], Int);
             ("dget", [Dict(String,String); String], String);
             ("dset", [Dict(String,String); String; String], Dict(String,String));
+            ("dsize", [Dict(String,String)], Int);
         ] in
         List.fold_left add_built_in StringMap.empty l
     in
@@ -62,6 +65,7 @@ let check_ast ast =
         let l = [
             ("lprint", [List(t)], Int);
             ("lget", [List(t); Int], t);
+            ("lsize", [List(t)], Int);
         ] in
         List.fold_left add_built_in vsym l
     in
@@ -70,6 +74,7 @@ let check_ast ast =
             ("dprint", [Dict(t1,t2)], Int);
             ("dget", [Dict(t1,t2); t1], t2);
             ("dset", [Dict(t1,t2); t1; t2], Dict(t1,t2));
+            ("dsize", [Dict(t1,t2)], Int);
         ] in
         List.fold_left add_built_in vsym l
     in

@@ -80,6 +80,16 @@ int ll_print(ll_node *head) {
     return i;
 }
 
+int ll_size(ll_node *head) {
+    int i = 0;
+    ll_node *curr = head;
+    while(curr != NULL) {
+        i++;
+        curr = curr->next;
+    }
+    return i;
+}
+
 /*
 int main() {
 

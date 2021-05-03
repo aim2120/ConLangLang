@@ -25,7 +25,6 @@ and sx =
   | SMatch of smtch
   | SIfElse of sifelse
   | SWhile of swhle
-  | SExpr of sexpr
   | SNullExpr
 and sfunlit = {
     sformals: (typ * string) list;
@@ -87,7 +86,6 @@ let rec string_of_sexpr sexpr =
   | SWhile(w) -> "while:" ^ string_of_typ w.swtyp ^ " (" ^ string_of_sexpr w.swcond ^ ") {\n" ^ string_of_sstmtblock w.swblock ^ "}"
   | SId(v) -> v
   | SUTDId(v) -> v
-  | SExpr(e) -> "(" ^ string_of_sexpr e ^ ")"
   in "(typs: " ^ String.concat ", " (List.map string_of_typ (fst sexpr)) ^ ")" ^ s
 and string_of_sexpr_or_def = function
     SExprMatch(e) -> string_of_sexpr e
