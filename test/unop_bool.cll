@@ -1,0 +1,4 @@
+x = !true;
+sprint((string)x);
+x = !false;
+sprint((string)x);

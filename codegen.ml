@@ -392,6 +392,24 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             )
             in
             (builder, out)
+        | SUnop(o, (typlist,e)) ->
+            let (builder, e') = expr parent_func builder e in
+            let t =
+                let t = List.hd typlist in
+                (match t with
+                    A.UserTyp(ut) -> snd (StringMap.find ut env.tsym)
+                    | _ -> t)
+            in
+            let out = (match o with
+                A.Not -> L.build_not e' "not" builder
+                | A.Neg -> (
+                    match t with
+                    A.Int -> L.build_neg e' "neg" builder
+                    | A.Float -> L.build_fneg e' "neg" builder
+                    | _ -> raise (Failure internal_err)
+                )
+            ) in
+            (builder, out)
         | SFunCall((_,SId("lget")), [(_, l); (_,n)]) ->
             let (builder, addr) = expr parent_func builder l in
             let (builder, n') = expr parent_func builder n in
@@ -691,7 +709,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         (* TODO
         | SReLit(r) -> ()
         | SNullExpr -> ()
-        | SUnop(o, e) -> ()
         | SMatch(m) -> ()
         | SExpr(e) -> ()
                     *)
