@@ -59,6 +59,7 @@ let check_ast ast =
             ("dprint", [Dict(String,String)], Int);
             ("dget", [Dict(String,String); String], String);
             ("dset", [Dict(String,String); String; String], Dict(String,String));
+            ("dremove", [Dict(String,String); String], Dict(String,String));
             ("dsize", [Dict(String,String)], Int);
             ("dfold", [Fun([String;String;String],String);String;Dict(String,String)], String);
         ] in
@@ -77,6 +78,7 @@ let check_ast ast =
             ("dprint", [Dict(t1,t2)], Int);
             ("dget", [Dict(t1,t2); t1], t2);
             ("dset", [Dict(t1,t2); t1; t2], Dict(t1,t2));
+            ("dremove", [Dict(t1,t2); t1], Dict(t1,t2));
             ("dsize", [Dict(t1,t2)], Int);
         ] in
         List.fold_left add_built_in vsym l

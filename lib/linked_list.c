@@ -44,7 +44,7 @@ ll_node *ll_push(ll_node *head, char *data) {
 /* returns new head node */
 ll_node *ll_remove(ll_node *head, int n) {
     ll_node *curr = head;
-    ll_node *prev;
+    ll_node *prev = NULL;
 
     if (curr  == NULL) {
         return NULL;

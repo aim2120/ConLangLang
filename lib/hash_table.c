@@ -201,7 +201,7 @@ hashtable_t *ht_set( hashtable_t *hashtable, char *key, char *value ) {
     }
 
     /* There's already a pair.  Let's replace that string. */
-    if( next != NULL && next->key != NULL || (addr_cmp || str_cmp) ) {
+    if( next != NULL && next->key != NULL && (addr_cmp || str_cmp) ) {
 
         memcpy( next->value, value, sizeof( char * ) );
 
@@ -234,6 +234,73 @@ hashtable_t *ht_set( hashtable_t *hashtable, char *key, char *value ) {
     if ((hashtable->filled * 1.3) > (float)hashtable->size) {
         hashtable = ht_grow(hashtable);
     }
+
+    return hashtable;
+}
+
+hashtable_t *ht_remove(hashtable_t *hashtable, char *key) {
+    int bin = 0;
+    bool kis = hashtable->key_is_string;
+    entry_t *newpair = NULL;
+    entry_t *next = NULL;
+    entry_t *last = NULL;
+
+    char *to_hash = key;
+    if (kis) {
+        to_hash = *(char **)key;
+    }
+    bin = ht_hash( hashtable, to_hash );
+
+    next = hashtable->table[ bin ];
+
+    char **key_ptr;
+    char *key_;
+    char **nextkey_ptr;
+    char *nextkey_;
+
+    if (kis) {
+        key_ptr = (char **) key;
+        key_ = *key_ptr;
+    }
+
+    bool addr_cmp, str_cmp = false;
+    while( next != NULL && next->key != NULL ) {
+        addr_cmp = memcmp( key, next->key, 1) == 0;
+        if (kis) {
+            nextkey_ptr = (char **) (next->key);
+            nextkey_ = *nextkey_ptr;
+            str_cmp = strcmp( key_, nextkey_ ) == 0;
+        }
+        if (addr_cmp || str_cmp) {
+            break;
+        }
+
+        last = next;
+        next = next->next;
+    }
+
+    /* found the key to remove */
+    if( next != NULL && (addr_cmp || str_cmp) ) {
+
+        if (last != NULL) {
+            last->next = next->next;
+        } else {
+            hashtable->table[ bin ] = next->next;
+        }
+
+        if (next->key != NULL) {
+            free(next->key);
+        }
+
+        if (next->value != NULL) {
+            free(next->value);
+        }
+
+        free(next);
+
+        hashtable->filled--;
+
+    } /* else -> couldn't find key, return hashtable unchanged */
 
     return hashtable;
 }
@@ -345,6 +412,9 @@ int main( int argc, char **argv ) {
     ht_set( hashtable, "key3", "blinky" );
     ht_print(hashtable);
     ht_set( hashtable, "key4", "floyd" );
+    ht_print(hashtable);
+
+    ht_remove( hashtable, "key1" );
     ht_print(hashtable);
 
     printf( "%s\n", ht_get( hashtable, "key1" ) );

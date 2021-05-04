@@ -19,6 +19,9 @@ dset(d2,'d','D');
 
 s = dfold(f,'',d2);
 sprint(s);
+d2 = dremove(d2,'d');
+s = dfold(f,'',d2);
+sprint(s);
 
 f2 = <int a, int k, int v:int>{
     if:int (k % 2 == 0) {

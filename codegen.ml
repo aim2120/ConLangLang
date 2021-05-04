@@ -173,9 +173,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     (* linked list functions *)
     let ll_create = "ll_create" in
     let ll_push   = "ll_push" in
-    let ll_remove = "ll_remove" in
     let ll_next   = "ll_next" in
     let ll_get    = "ll_get" in
+    let ll_remove = "ll_remove" in
     let ll_print  = "ll_print" in
     let ll_size   = "ll_size" in
     let ll_dup    = "ll_dup" in
@@ -183,9 +183,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ll_defs = [
         (ll_create, (L.pointer_type ll_node), [|string_t|]);
         (ll_push, (L.pointer_type ll_node), [|L.pointer_type ll_node; string_t|]);
-        (ll_remove, (L.pointer_type ll_node), [|L.pointer_type ll_node;i32_t|]);
         (ll_next, (L.pointer_type ll_node), [|L.pointer_type ll_node|]);
         (ll_get, (string_t), [|L.pointer_type ll_node; i32_t|]);
+        (ll_remove, (L.pointer_type ll_node), [|L.pointer_type ll_node;i32_t|]);
         (ll_print, i32_t, [|L.pointer_type ll_node|]);
         (ll_size, i32_t, [|L.pointer_type ll_node|]);
         (ll_dup, (L.pointer_type ll_node), [|L.pointer_type ll_node|]);
@@ -194,9 +194,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ll_funcs = List.fold_left declare_funcs StringMap.empty ll_defs in
     let ll_create_func = StringMap.find ll_create ll_funcs in
     let ll_push_func = StringMap.find ll_push ll_funcs in
-    let ll_remove_func = StringMap.find ll_remove ll_funcs in
     let ll_next_func = StringMap.find ll_next ll_funcs in
     let ll_get_func = StringMap.find ll_get ll_funcs in
+    let ll_remove_func = StringMap.find ll_remove ll_funcs in
     let ll_print_func = StringMap.find ll_print ll_funcs in
     let ll_size_func = StringMap.find ll_size ll_funcs in
     let ll_dup_func = StringMap.find ll_dup ll_funcs in
@@ -208,6 +208,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ht_newpair = "ht_newpair" in
     let ht_set     = "ht_set" in
     let ht_get     = "ht_get" in
+    let ht_remove  = "ht_remove" in
     let ht_print   = "ht_print" in
     let ht_size    = "ht_size" in
     let ht_keys    = "ht_keys" in
@@ -216,6 +217,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         (ht_hash, i32_t, [|(L.pointer_type ht_t); string_t|]);
         (ht_newpair, (L.pointer_type ht_entry), [|string_t; string_t|]);
         (ht_get, string_t, [|(L.pointer_type ht_t); string_t|]);
+        (ht_remove, (L.pointer_type ht_t), [|(L.pointer_type ht_t); string_t|]);
         (ht_set, (L.pointer_type ht_t), [|(L.pointer_type ht_t); string_t; string_t|]);
         (ht_print, i32_t, [|(L.pointer_type ht_t)|]);
         (ht_size, i32_t, [|L.pointer_type ht_t|]);
@@ -227,6 +229,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ht_newpair_func = StringMap.find ht_newpair ht_funcs in
     let ht_set_func = StringMap.find ht_set ht_funcs in
     let ht_get_func = StringMap.find ht_get ht_funcs in
+    let ht_remove_func = StringMap.find ht_remove ht_funcs in
     let ht_print_func = StringMap.find ht_print ht_funcs in
     let ht_size_func = StringMap.find ht_size ht_funcs in
     let ht_keys_func = StringMap.find ht_keys ht_funcs in
@@ -457,6 +460,47 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ) in
             (builder, out)
 
+        | SFunCall((_,SId("dset")), [(_, dict); (_,k); (_,v)]) ->
+            let (builder, addr) = expr parent_func builder dict in
+            let (builder, k')   = expr parent_func builder k in
+            let (builder, v')   = expr parent_func builder v in
+            let addr_typ = L.type_of addr in
+            let f_name = "dset" ^ (str_of_ltyp addr_typ) in
+            let func = (match L.lookup_function f_name the_module with
+                Some f -> f
+                | None -> (
+                    let addr_typ = L.type_of addr in
+                    let k_typ = L.type_of k' in
+                    let v_typ = L.type_of v' in
+                    let (func, function_builder) = make_func f_name [(addr_typ,"d");(k_typ,"k");(v_typ,"v")] addr_typ in
+
+                    (* building dset function *)
+                    let (function_builder, addr) = expr func function_builder (SId("d")) in
+                    let (function_builder, k')   = expr func function_builder (SId("k")) in
+                    let (function_builder, v')   = expr func function_builder (SId("v")) in
+
+                    let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" function_builder in
+                    let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" function_builder in
+                    let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" function_builder in
+                    let ltyp1 = L.type_of (L.build_load (L.build_load addr_t1 "t1*" function_builder) "t1" function_builder) in
+                    let ltyp2 = L.type_of (L.build_load (L.build_load addr_t2 "t2*" function_builder) "t2" function_builder) in
+
+                    let k_data = make_addr k' ltyp1 false function_builder in
+                    let v_data = make_addr v' ltyp2 false function_builder in
+                    let c_k_data = L.build_bitcast k_data string_t "ckdata" function_builder in
+                    let c_v_data = L.build_bitcast v_data string_t "cvdata" function_builder in
+                    let ht = L.build_load addr_ht "ht" function_builder in
+                    let ht' = L.build_call ht_set_func [|ht;c_k_data;c_v_data|] "ht_" function_builder in
+                    (if L.is_null ht' then raise (Failure "malloc failed") else ());
+                    ignore(L.build_store ht' addr_ht function_builder);
+                    ignore(L.build_ret addr function_builder);
+                    func
+                )
+            )
+            in
+            let addr = L.build_call func [|addr;k';v'|] "dset" builder in
+            (builder, addr)
+
         | SFunCall((_,SId("lget")), [(_, l); (_,n)]) ->
             let (builder, addr) = expr parent_func builder l in
             let (builder, n') = expr parent_func builder n in
@@ -494,11 +538,11 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         | SFunCall((_,SId("dget")), [(_, dict); (_,k)]) ->
             let (builder, addr) = expr parent_func builder dict in
             let (builder, k') = expr parent_func builder k in
-            let f_name = "dget" ^ (str_of_ltyp (L.type_of addr)) in
+            let addr_typ = L.type_of addr in
+            let f_name = "dget" ^ (str_of_ltyp addr_typ) in
             let func = (match L.lookup_function f_name the_module with
                 Some f -> f
                 | None -> (
-                    let addr_typ = L.type_of addr in
                     let k_typ = L.type_of k' in
                     let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" builder in
                     let v_typ = L.type_of (L.build_load (L.build_load addr_t2 "t2*" builder) "t2" builder) in
@@ -529,49 +573,43 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
                     func
                 )
-            )
-            in
+            ) in
             let v_data_load = L.build_call func [|addr;k'|] "dget" builder in
             (builder, v_data_load)
 
-        | SFunCall((_,SId("dset")), [(_, dict); (_,k); (_,v)]) ->
+        | SFunCall((_,SId("dremove")), [(_, dict); (_,k)]) ->
             let (builder, addr) = expr parent_func builder dict in
-            let (builder, k')   = expr parent_func builder k in
-            let (builder, v')   = expr parent_func builder v in
-            let f_name = "dset" ^ (str_of_ltyp (L.type_of addr)) in
+            let (builder, k') = expr parent_func builder k in
+            let addr_typ = L.type_of addr in
+            let f_name = "dremove" ^ (str_of_ltyp addr_typ) in
             let func = (match L.lookup_function f_name the_module with
                 Some f -> f
                 | None -> (
-                    let addr_typ = L.type_of addr in
                     let k_typ = L.type_of k' in
-                    let v_typ = L.type_of v' in
-                    let (func, function_builder) = make_func f_name [(addr_typ,"d");(k_typ,"k");(v_typ,"v")] addr_typ in
+                    let (func, function_builder) = make_func f_name [(addr_typ,"d");(k_typ,"k")] addr_typ in
 
-                    (* building dset function *)
+                    (* building dremove function *)
                     let (function_builder, addr) = expr func function_builder (SId("d")) in
                     let (function_builder, k')   = expr func function_builder (SId("k")) in
-                    let (function_builder, v')   = expr func function_builder (SId("v")) in
 
                     let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" function_builder in
                     let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" function_builder in
                     let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" function_builder in
-                    let ltyp1 = L.type_of (L.build_load (L.build_load addr_t1 "t1*" function_builder) "t1" function_builder) in
-                    let ltyp2 = L.type_of (L.build_load (L.build_load addr_t2 "t2*" function_builder) "t2" function_builder) in
-
+                    let ltyp1_ptr = L.build_load addr_t1 "t1*" function_builder in
+                    let ltyp2_ptr = L.build_load addr_t2 "t2*" function_builder in
+                    let ltyp1 = L.type_of (L.build_load ltyp1_ptr "t1" function_builder) in
+                    let ltyp2 = L.type_of (L.build_load ltyp2_ptr "t2" function_builder) in
                     let k_data = make_addr k' ltyp1 false function_builder in
-                    let v_data = make_addr v' ltyp2 false function_builder in
                     let c_k_data = L.build_bitcast k_data string_t "ckdata" function_builder in
-                    let c_v_data = L.build_bitcast v_data string_t "cvdata" function_builder in
                     let ht = L.build_load addr_ht "ht" function_builder in
-                    let ht' = L.build_call ht_set_func [|ht;c_k_data;c_v_data|] "ht_" function_builder in
+                    let ht' = L.build_call ht_remove_func [|ht;c_k_data|] "ht_" function_builder in
                     (if L.is_null ht' then raise (Failure "malloc failed") else ());
                     ignore(L.build_store ht' addr_ht function_builder);
                     ignore(L.build_ret addr function_builder);
                     func
                 )
-            )
-            in
-            let addr = L.build_call func [|addr;k';v'|] "dset" builder in
+            ) in
+            let addr = L.build_call func [|addr;k'|] "dremove" builder in
             (builder, addr)
 
         | SFunCall((_,SId("ssize")), [(_, s)]) ->
