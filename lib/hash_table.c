@@ -107,18 +107,29 @@ void ht_delete( hashtable_t *hashtable ) {
     free(hashtable);
 }
 
-/* djb2 hash function */
+
 /* Hash a string for a particular hash table. */
 int ht_hash( hashtable_t *hashtable, char *key ) {
 
     unsigned long int hashval = 5381;
     int i = 0;
 
-    /* Convert our string to an integer */
-    while( hashval < ULONG_MAX && i < strlen( key ) ) {
-        hashval = hashval << 5;
-        hashval += key[ i ];
-        i++;
+    if (hashtable->key_is_string) {
+        /* Convert our string to an integer */
+        /* djb2 hash function */
+        while( hashval < ULONG_MAX && i < strlen( key ) ) {
+            hashval += key[ i ];
+            hashval = hashval << 5;
+            i++;
+        }
+    }
+    else {
+        /* https://stackoverflow.com/questions/664014/
+         * what-integer-hash-function-are-good-that-accepts-an-integer-hash-key */
+        hashval += key[0];
+        hashval = ((hashval >> 16) ^ hashval) * 0x45d9f3b;
+        hashval = ((hashval >> 16) ^ hashval) * 0x45d9f3b;
+        hashval = (hashval >> 16) ^ hashval;
     }
 
     return hashval % hashtable->size;
@@ -279,28 +290,20 @@ char *ht_get( hashtable_t *hashtable, char *key ) {
 
 int ht_print (hashtable_t *hashtable) {
     int i = 0;
-    if (hashtable->key_is_string) {
-        for (int i = 0; i < hashtable->size; i++) {
-            entry_t *pair = hashtable->table[i];
-            printf("(%d) ", i);
-            while ( pair != NULL) {
+    for (int i = 0; i < hashtable->size; i++) {
+        entry_t *pair = hashtable->table[i];
+        printf("(%d) ", i);
+        while ( pair != NULL) {
+            if (hashtable->key_is_string) {
                 printf("%s : ", *(char**) pair->key);
-                printf("%lu; ", (unsigned long) pair->value);
-                pair = pair->next;
             }
-            printf("\n");
-        }
-    } else {
-        for (int i = 0; i < hashtable->size; i++) {
-            entry_t *pair = hashtable->table[i];
-            printf("(%d) ", i);
-            while ( pair != NULL) {
+            else {
                 printf("%lu : ", (unsigned long) pair->key);
-                printf("%lu; ", (unsigned long) pair->value);
-                pair = pair->next;
             }
-            printf("\n");
+            printf("%lu; ", (unsigned long) pair->value);
+            pair = pair->next;
         }
+        printf("\n");
     }
     return i;
 }

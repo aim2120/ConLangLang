@@ -51,6 +51,7 @@ let check_ast ast =
         let l = [
             ("sprint", [String], Int);
             ("ssize", [String], Int);
+            ("sfold", [Fun([String;String],String);String;String], String);
             ("lprint", [List(String)], Int);
             ("lget", [List(String); (Int)], String);
             ("lsize", [List(String)], Int);
@@ -253,7 +254,13 @@ let check_ast ast =
             } in
             let ret_typ = f'.sftyp in
             let formal_typs = List.map (fun (t,_) -> t) f'.sformals in
-            ([Fun(formal_typs, ret_typ)], SFunLit(f'), env.vsym)
+            let vsym = (match Fun(formal_typs, ret_typ) with
+                Fun([t;String],t') when t = t' ->
+                    add_built_in env.vsym ("sfold", [Fun([t;String],t);t;String], t)
+                | _ -> env.vsym
+            )
+            in
+            ([Fun(formal_typs, ret_typ)], SFunLit(f'), vsym)
         | Binop(e1,o,e2) ->
             let (typlist1, se1, vsym) = check_expr env e1 in
             let (typlist2, se2, vsym') = check_expr (add_env_vsym env vsym) e2 in
@@ -351,7 +358,6 @@ let check_ast ast =
             in
             (* multiple function definitions can exist *)
             let fun_defs = List.map get_formals_and_ret typlist in
-            (* TODO: make with expression instead of id *)
             let rec check_args formals actuals = (
                 match formals, actuals with
                 f_hd::f_tl, a_hd::a_tl ->
