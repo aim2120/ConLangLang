@@ -2,7 +2,7 @@ d = <int,int>{0:-0};
 
 sprint((string)(dget(d,0)));
 
-dset(d,1,-1);
+dadd(d,1,-1);
 
 sprint((string)(dget(d,1)));
 sprint((string)(dsize(d)));
@@ -12,10 +12,10 @@ f = <string a, string k, string v:string>{
 };
 
 d2 = <string,string>{};
-dset(d2,'a','A');
-dset(d2,'b','B');
-dset(d2,'c','C');
-dset(d2,'d','D');
+dadd(d2,'a','A');
+dadd(d2,'b','B');
+dadd(d2,'c','C');
+dadd(d2,'d','D');
 
 s = dfold(f,'',d2);
 sprint(s);
@@ -41,9 +41,9 @@ f3 = <int a, int k, int v:int>{
     a + v;
 };
 
-dset(d,2,-2);
-dset(d,3,-3);
-dset(d,4,-4);
+dadd(d,2,-2);
+dadd(d,3,-3);
+dadd(d,4,-4);
 
 sprint((string)(dsize(d)));
 

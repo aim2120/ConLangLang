@@ -460,12 +460,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ) in
             (builder, out)
 
-        | SFunCall((_,SId("dset")), [(_, dict); (_,k); (_,v)]) ->
+        | SFunCall((_,SId("dadd")), [(_, dict); (_,k); (_,v)]) ->
             let (builder, addr) = expr parent_func builder dict in
             let (builder, k')   = expr parent_func builder k in
             let (builder, v')   = expr parent_func builder v in
             let addr_typ = L.type_of addr in
-            let f_name = "dset" ^ (str_of_ltyp addr_typ) in
+            let f_name = "dadd" ^ (str_of_ltyp addr_typ) in
             let func = (match L.lookup_function f_name the_module with
                 Some f -> f
                 | None -> (
@@ -474,7 +474,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let v_typ = L.type_of v' in
                     let (func, function_builder) = make_func f_name [(addr_typ,"d");(k_typ,"k");(v_typ,"v")] addr_typ in
 
-                    (* building dset function *)
+                    (* building dadd function *)
                     let (function_builder, addr) = expr func function_builder (SId("d")) in
                     let (function_builder, k')   = expr func function_builder (SId("k")) in
                     let (function_builder, v')   = expr func function_builder (SId("v")) in
@@ -498,7 +498,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 )
             )
             in
-            let addr = L.build_call func [|addr;k';v'|] "dset" builder in
+            let addr = L.build_call func [|addr;k';v'|] "dadd" builder in
             (builder, addr)
 
         | SFunCall((_,SId("lget")), [(_, l); (_,n)]) ->
@@ -509,10 +509,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 Some f -> f
                 | None -> (
                     let addr_typ = L.type_of addr in
-                    let n_typ = L.type_of n' in
                     let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" builder in
                     let t = L.type_of (L.build_load (L.build_load addr_t "t*" builder) "t" builder) in
-                    let (func, function_builder) = make_func f_name [(addr_typ,"l");(n_typ,"n")] t in
+                    let (func, function_builder) = make_func f_name [(addr_typ,"l");(i32_t,"n")] t in
 
                     let (function_builder, addr) = expr func function_builder (SId("l")) in
                     let (function_builder, k') = expr func function_builder (SId("n")) in
@@ -576,6 +575,35 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ) in
             let v_data_load = L.build_call func [|addr;k'|] "dget" builder in
             (builder, v_data_load)
+
+        | SFunCall((_,SId("lremove")), [(_, l); (_,n)]) ->
+            let (builder, addr) = expr parent_func builder l in
+            let (builder, n') = expr parent_func builder n in
+            let addr_typ = L.type_of addr in
+            let f_name = "lremove" ^ (str_of_ltyp addr_typ) in
+            let func = (match L.lookup_function f_name the_module with
+                Some f -> f
+                | None -> (
+                    let (func, function_builder) = make_func f_name [(addr_typ,"l");(i32_t,"n")] addr_typ in
+
+                    let (function_builder, addr) = expr func function_builder (SId("l")) in
+                    let (function_builder, k') = expr func function_builder (SId("n")) in
+
+                    let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" function_builder in
+                    let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
+                    let ltyp_ptr = L.build_load addr_t "t*" function_builder in
+                    let ltyp = L.type_of (L.build_load ltyp_ptr "t" function_builder) in
+                    let head_node = L.build_load addr_head "headnode" function_builder in
+                    let head_node' = L.build_call ll_remove_func [|head_node;n'|] "headnode_" function_builder in
+                    ignore(L.build_store head_node' addr_head function_builder);
+                    ignore(L.build_ret addr function_builder);
+
+                    func
+                )
+            )
+            in
+            let addr' = L.build_call func [|addr;n'|] "lremove" builder in
+            (builder, addr')
 
         | SFunCall((_,SId("dremove")), [(_, dict); (_,k)]) ->
             let (builder, addr) = expr parent_func builder dict in

@@ -10,11 +10,11 @@ s = lfold(f,'',l2);
 sprint(s);
 
 f2 = <dict<int,string> d, int e:dict<int,string>>{
-    dset(d,e,(string)e);
+    dadd(d,e,(string)e);
 };
 
 f2bang = <dict<int,string> d, int e:dict<int,string>>{
-    dset(d,e,((string)e) ^ '!');
+    dadd(d,e,((string)e) ^ '!');
 };
 
 d = lfold(f2,<int,string>{},l);
@@ -26,4 +26,9 @@ f3 = <dict<int,string> d, int e:dict<int,string>>{
 lfold(f3,d,l);
 
 d = lfold(f2bang,d,l);
+lfold(f3,d,l);
+
+lremove(l,0);
+lremove(l,0);
+
 lfold(f3,d,l);

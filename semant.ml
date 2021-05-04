@@ -54,11 +54,13 @@ let check_ast ast =
             ("sfold", [Fun([String;String],String);String;String], String);
             ("lprint", [List(String)], Int);
             ("lget", [List(String); (Int)], String);
+            ("ladd", [List(String); String], List(String));
+            ("lremove", [List(String); Int], List(String));
             ("lsize", [List(String)], Int);
             ("lfold", [Fun([String;String],String);String;List(String)], String);
             ("dprint", [Dict(String,String)], Int);
             ("dget", [Dict(String,String); String], String);
-            ("dset", [Dict(String,String); String; String], Dict(String,String));
+            ("dadd", [Dict(String,String); String; String], Dict(String,String));
             ("dremove", [Dict(String,String); String], Dict(String,String));
             ("dsize", [Dict(String,String)], Int);
             ("dfold", [Fun([String;String;String],String);String;Dict(String,String)], String);
@@ -69,6 +71,8 @@ let check_ast ast =
         let l = [
             ("lprint", [List(t)], Int);
             ("lget", [List(t); Int], t);
+            ("ladd", [List(t); t], List(t));
+            ("lremove", [List(t); Int], List(t));
             ("lsize", [List(t)], Int);
         ] in
         List.fold_left add_built_in vsym l
@@ -77,7 +81,7 @@ let check_ast ast =
         let l = [
             ("dprint", [Dict(t1,t2)], Int);
             ("dget", [Dict(t1,t2); t1], t2);
-            ("dset", [Dict(t1,t2); t1; t2], Dict(t1,t2));
+            ("dadd", [Dict(t1,t2); t1; t2], Dict(t1,t2));
             ("dremove", [Dict(t1,t2); t1], Dict(t1,t2));
             ("dsize", [Dict(t1,t2)], Int);
         ] in

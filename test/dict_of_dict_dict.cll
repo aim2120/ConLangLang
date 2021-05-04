@@ -1,7 +1,7 @@
 d1 = <int,int>{};
 d2 = <int,int>{};
 dd = <dict<int,int>,dict<int,int>>{d1:d2};
-(dset(d1,0,0));
+(dadd(d1,0,0));
 d2_ = dget(dd,d1);
-(dset(d2_,1,1));
+(dadd(d2_,1,1));
 sprint((string)(dget(dget(dd,d1),1)));

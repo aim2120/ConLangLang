@@ -4,6 +4,6 @@ d2 = <string,string>{'a':'A', 'b':'B', 'c':'C'};
 x = dget(d1,0);
 sprint((string)x);
 ## TODO: WHY DOES THIS SEGFAULT
-d2 = dset(d2, 'd', 'D');
+d2 = dadd(d2, 'd', 'D');
 y = dget(d2,'a');
 sprint(y);

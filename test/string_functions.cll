@@ -5,7 +5,7 @@ f = <int a, string s:int>{
 x = sfold(f,0,s);
 sprint((string)x);
 f2 = <dict<string,string> a, string s:dict<string,string>>{
-    dset(a,s,(s ^ '!'));
+    dadd(a,s,(s ^ '!'));
 };
 d = sfold(f2,<string,string>{},s);
 f3 = <dict<string,string> a, string s:dict<string,string>> {

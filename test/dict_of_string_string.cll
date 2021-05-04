@@ -1,4 +1,4 @@
 a = 'a';
 d = <string,string>{a:'b', 'c':'d', 'e':'f'};
-d = dset(d, a,'changed');
+d = dadd(d, a,'changed');
 sprint(dget(d, a));

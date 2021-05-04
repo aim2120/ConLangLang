@@ -1,7 +1,7 @@
 x = <int,string>{0:'0'};
-dset(x, 1, '1');
-dset(x, 2, '2');
-dset(x, 3, '3');
+dadd(x, 1, '1');
+dadd(x, 2, '2');
+dadd(x, 3, '3');
 sprint(dget(x, 3));
 sprint(dget(x, 2));
 sprint(dget(x, 1));

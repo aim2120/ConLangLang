@@ -1,7 +1,7 @@
 d1 = <int,string>{};
 d2 = <int,string>{};
-dset(d1, 5, 'hello');
-dset(d2, 6, 'world');
+dadd(d1, 5, 'hello');
+dadd(d2, 6, 'world');
 x = dget(d1, 5);
 y = dget(d2, 6);
 sprint(x);

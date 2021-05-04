@@ -1,7 +1,7 @@
 typedef $X = { int i; string s; dict<int,int> d; };
 $X x = { i = 5; s = 'hello'; d = <int,int>{}; };
 dofx = x.d;
-dset(dofx, 0, 0);
+dadd(dofx, 0, 0);
 
 f = <$X x:int>{
     sprint((string)x.i);
