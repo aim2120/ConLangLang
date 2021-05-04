@@ -570,67 +570,63 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let out = L.build_call ht_print_func [|ht|] "printdict" builder in
             (builder, out)
         | SFunCall((_,SId("sfold")), [(_,f);(_,a);(_,s)]) ->
-            let (builder, func) = expr parent_func builder f in
+            let (builder, arg_func) = expr parent_func builder f in
             let (builder, a') = expr parent_func builder a in
             let (builder, addr) = expr parent_func builder s in
+            let accum_typ = L.type_of a' in
+            let f_name = "sfold" ^ (str_of_ltyp accum_typ) in
+            let func = (match L.lookup_function f_name the_module with
+                Some f -> f
+                | None -> (
+                    let arg_func_typ = L.type_of arg_func in
+                    let (func, function_builder) = make_func f_name [(arg_func_typ,"f");(accum_typ,"a");(string_t,"s")] accum_typ in
 
-            let i_addr = L.build_alloca i32_t "iaddr" builder in
-            ignore(L.build_store zero i_addr builder);
-            let accum_addr = L.build_malloc (L.type_of a') "accum" builder in
-            ignore(L.build_store a' accum_addr builder);
-            let len = L.build_call strlen_func [|addr|] "len" builder in
+                    let (function_builder, arg_func) = expr func function_builder (SId("f")) in
+                    let (function_builder, a') = expr func function_builder (SId("a")) in
+                    let (function_builder, addr) = expr func function_builder (SId("s")) in
 
-            let cond_bb = L.append_block context "cond" parent_func in
-            let cond_builder = L.builder_at_end context cond_bb in
-            let i = L.build_load i_addr "i" cond_builder in
-            let cond = L.build_icmp L.Icmp.Slt i len "lessthan" cond_builder in
+                    let i_addr = L.build_alloca i32_t "iaddr" function_builder in
+                    ignore(L.build_store zero i_addr function_builder);
+                    let accum_addr = L.build_malloc (L.type_of a') "accum" function_builder in
+                    ignore(L.build_store a' accum_addr function_builder);
+                    let len = L.build_call strlen_func [|addr|] "len" function_builder in
 
-            let body_bb = L.append_block context "foldbody" parent_func in
-            let body_builder = L.builder_at_end context body_bb in
-            let c_str = L.build_array_malloc i8_t two "cstr" body_builder in
-            let c_char = L.build_in_bounds_gep c_str [|zero|] "cchar" body_builder in
-            let c_null = L.build_in_bounds_gep c_str [|one|] "cnull" body_builder in
-            ignore(L.build_store (L.const_int i8_t 0) c_null body_builder);
-            let c_addr = L.build_in_bounds_gep addr [|i|] "caddr" body_builder in
-            let c = L.build_load c_addr "c" body_builder in
-            ignore(L.build_store c c_char body_builder);
-            let a = L.build_load accum_addr "accumload" body_builder in
-            let a = L.build_call func [|a;c_str|] "accumresult" body_builder in
-            ignore(L.build_store a accum_addr body_builder);
-            let i = L.build_add i one "i" body_builder in
-            ignore(L.build_store i i_addr body_builder);
+                    let cond_bb = L.append_block context "cond" func in
+                    let cond_builder = L.builder_at_end context cond_bb in
+                    let i = L.build_load i_addr "i" cond_builder in
+                    let cond = L.build_icmp L.Icmp.Slt i len "lessthan" cond_builder in
 
-            let merge_bb = L.append_block context "merge" parent_func in
+                    let body_bb = L.append_block context "foldbody" func in
+                    let body_builder = L.builder_at_end context body_bb in
+                    let c_str = L.build_array_malloc i8_t two "cstr" body_builder in
+                    let c_char = L.build_in_bounds_gep c_str [|zero|] "cchar" body_builder in
+                    let c_null = L.build_in_bounds_gep c_str [|one|] "cnull" body_builder in
+                    ignore(L.build_store (L.const_int i8_t 0) c_null body_builder);
+                    let c_addr = L.build_in_bounds_gep addr [|i|] "caddr" body_builder in
+                    let c = L.build_load c_addr "c" body_builder in
+                    ignore(L.build_store c c_char body_builder);
+                    let a = L.build_load accum_addr "accumload" body_builder in
+                    let a = L.build_call arg_func [|a;c_str|] "accumresult" body_builder in
+                    ignore(L.build_store a accum_addr body_builder);
+                    let i = L.build_add i one "i" body_builder in
+                    ignore(L.build_store i i_addr body_builder);
 
-            ignore(L.build_br cond_bb builder);
-            ignore(L.build_br cond_bb body_builder);
-            ignore(L.build_cond_br cond body_bb merge_bb cond_builder);
+                    let merge_bb = L.append_block context "merge" func in
 
-            let builder = L.builder_at_end context merge_bb in
-            let accum_final = L.build_load accum_addr "accumfinal" builder in
+                    ignore(L.build_br cond_bb function_builder);
+                    ignore(L.build_br cond_bb body_builder);
+                    ignore(L.build_cond_br cond body_bb merge_bb cond_builder);
+
+                    let function_builder = L.builder_at_end context merge_bb in
+                    let accum_final = L.build_load accum_addr "accumfinal" function_builder in
+
+                    ignore(L.build_ret accum_final function_builder);
+
+                    func
+                )
+            ) in
+            let accum_final = L.build_call func [|arg_func;a';addr|] "accumfinal" builder in
             (builder, accum_final)
-            (*
-             SWhile(w) ->
-            let ltyp = ltyp_of_typ w.swtyp in
-            let out_addr = L.build_alloca ltyp "out" builder in
-            (* null value if while doesn't run *)
-            ignore(L.build_store (L.const_null ltyp) out_addr builder);
-
-            let cond_bb = L.append_block context "while" parent_func in
-            ignore(L.build_br cond_bb builder);
-            let (cond_builder, cond) = expr parent_func (L.builder_at_end context cond_bb) (snd w.swcond) in
-
-            let body_bb = L.append_block context "while_body" parent_func in
-            let (_, body_builder, body_out) = List.fold_left stmt (parent_func, L.builder_at_end context body_bb, zero) w.swblock in
-            ignore(L.build_store body_out out_addr body_builder);
-            ignore(L.build_br cond_bb body_builder);
-
-            let merge_bb = L.append_block context "merge" parent_func in
-            ignore(L.build_cond_br cond body_bb merge_bb cond_builder);
-            let builder = L.builder_at_end context merge_bb in
-            let out = L.build_load out_addr "whileout" builder in
-            (builder, out)
-            *)
         | SAssign(v, (_,e)) ->
             let (builder, e') = expr parent_func builder e in
             Hashtbl.add var_tbl v e';
