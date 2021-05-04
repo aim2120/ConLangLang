@@ -3,7 +3,6 @@
 type action = Ast | Sast | LLVM_IR | Compile
 
 let () =
-    try
         let action = ref Compile in
         let set_action a () = action := a in
         let speclist = [
@@ -22,11 +21,11 @@ let () =
             with Parsing.Parse_error ->
                 let s = ("!!!ERROR!!! line " ^ string_of_int !Scanner.line_num ^ ": parsing error\n")
                 in
-                raise (Failure s)
+                raise (Failure (s ^ "\n"))
             | Failure(msg) ->
                 let s = ("!!!ERROR!!! line " ^ string_of_int !Scanner.line_num ^ ": " ^ msg ^ "\n")
                 in
-                raise (Failure s)
+                raise (Failure (s ^ "\n"))
         in
         match !action with
             Ast -> print_string (Ast.string_of_program ast)
@@ -39,7 +38,7 @@ let () =
                         close_out log;
                         let s = (msg ^ "\n(Check " ^ file_out ^ " for line numbers)\n")
                         in
-                        raise (Failure s)
+                        raise (Failure (s ^ "\n"))
                 in
                 match !action with
                 Ast -> ()
@@ -48,4 +47,3 @@ let () =
                 | Compile -> let m = Codegen.translate env sast in
 	                Llvm_analysis.assert_valid_module m;
 	                print_string (Llvm.string_of_llmodule m)
-    with Failure(msg) -> print_string msg

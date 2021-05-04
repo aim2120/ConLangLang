@@ -599,7 +599,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ignore(L.build_store a accum_addr body_builder);
             let i = L.build_add i one "i" body_builder in
             ignore(L.build_store i i_addr body_builder);
-            
+
             let merge_bb = L.append_block context "merge" parent_func in
 
             ignore(L.build_br cond_bb builder);
@@ -691,7 +691,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let (cond_blocks, _) = List.fold_left2 make_cond_block ([], (List.length blocks - 1)) (List.rev l) blocks
                     in
                     cond_blocks
-                | STypMatchList(l) -> raise (Failure not_impl)
+                | STypMatchList(l) -> raise (Failure ("typmatch" ^ not_impl))
             ) in
 
             ignore(L.build_br (List.hd cond_blocks) builder);

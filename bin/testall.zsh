@@ -31,7 +31,7 @@ for t in ./$src_dir/*.cll; do
 
     filename=${t%.cll}
     filename=${filename##*/}
-    output+="$(./bin/make_test_exe.zsh $filename)"
+    output+="$(./bin/make_test_exe.sh $filename)"
 
     if test -f "./${build_dir}/${filename}"; then
         progoutput="$(./${build_dir}/${filename})"
