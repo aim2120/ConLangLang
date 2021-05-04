@@ -1,5 +1,52 @@
-d = <int,int>{0:0};
+d = <int,int>{0:-0};
+
 sprint((string)(dget(d,0)));
-d = dset(d, 1, 1);
+
+dset(d,1,-1);
+
 sprint((string)(dget(d,1)));
 sprint((string)(dsize(d)));
+
+f = <string a, string k, string v:string>{
+    a ^ k ^ ':' ^ v ^ ' ';
+};
+
+d2 = <string,string>{};
+dset(d2,'a','A');
+dset(d2,'b','B');
+dset(d2,'c','C');
+dset(d2,'d','D');
+
+s = dfold(f,'',d2);
+sprint(s);
+
+f2 = <int a, int k, int v:int>{
+    if:int (k % 2 == 0) {
+        sprint('even key: ' ^ ((string)k));
+    } else {
+        sprint('odd key: ' ^ ((string)k));
+    };
+    a + k;
+};
+
+f3 = <int a, int k, int v:int>{
+    if:int (v % 2 == 0) {
+        sprint('even value: ' ^ ((string)v));
+    } else {
+        sprint('odd value: ' ^ ((string)v));
+    };
+    a + v;
+};
+
+dset(d,2,-2);
+dset(d,3,-3);
+dset(d,4,-4);
+
+sprint((string)(dsize(d)));
+
+keysum = dfold(f2,0,d);
+valsum = dfold(f3,0,d);
+
+sprint((string)keysum);
+sprint((string)valsum);
+

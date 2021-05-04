@@ -288,6 +288,27 @@ char *ht_get( hashtable_t *hashtable, char *key ) {
     }
 }
 
+char **ht_keys(hashtable_t *hashtable) {
+    char **keys;
+
+    if ((keys = malloc((sizeof (char**)) * hashtable->filled)) == NULL) {
+        return NULL;
+    }
+
+    int j = 0;
+
+    for (int i = 0; i < hashtable->size; i++) {
+        entry_t *pair = hashtable->table[i];
+        while (pair != NULL) {
+            keys[j] = pair->key;
+            pair = pair->next;
+            j++;
+        }
+    }
+
+    return keys;
+};
+
 int ht_print (hashtable_t *hashtable) {
     int i = 0;
     for (int i = 0; i < hashtable->size; i++) {
