@@ -153,6 +153,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let strcpy_func   : L.llvalue = declare_func ("strcpy", string_t, [|string_t; string_t|]) false in
     let strcat_func   : L.llvalue = declare_func ("strcat", string_t, [|string_t; string_t|]) false in
     let strlen_func   : L.llvalue = declare_func ("strlen", i32_t, [|string_t;|]) false in
+    let debug_empty_str_format = L.build_global_stringptr "DEBUG\n" "fmt" builder in
     let debug_str_format = L.build_global_stringptr "DEBUG %s\n" "fmt" builder in
     let debug_str_format1 = L.build_global_stringptr "DEBUG 1 %s\n" "fmt" builder in
     let debug_str_format2 = L.build_global_stringptr "DEBUG 2 %s\n" "fmt" builder in
@@ -166,25 +167,34 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     (* linked list functions *)
     let ll_create = "ll_create" in
     let ll_push   = "ll_push" in
-    let ll_pop    = "ll_pop" in
+    let ll_remove = "ll_remove" in
+    let ll_next   = "ll_next" in
     let ll_get    = "ll_get" in
     let ll_print  = "ll_print" in
     let ll_size   = "ll_size" in
+    let ll_dup    = "ll_dup" in
+    let ll_del    = "ll_del" in
     let ll_defs = [
         (ll_create, (L.pointer_type ll_node), [|string_t|]);
         (ll_push, (L.pointer_type ll_node), [|L.pointer_type ll_node; string_t|]);
-        (ll_pop, (L.pointer_type ll_node), [|L.pointer_type ll_node|]);
+        (ll_remove, (L.pointer_type ll_node), [|L.pointer_type ll_node;i32_t|]);
+        (ll_next, (L.pointer_type ll_node), [|L.pointer_type ll_node|]);
         (ll_get, (string_t), [|L.pointer_type ll_node; i32_t|]);
         (ll_print, i32_t, [|L.pointer_type ll_node|]);
         (ll_size, i32_t, [|L.pointer_type ll_node|]);
+        (ll_dup, (L.pointer_type ll_node), [|L.pointer_type ll_node|]);
+        (ll_del, void_t, [|L.pointer_type ll_node|]);
     ] in
     let ll_funcs = List.fold_left declare_funcs StringMap.empty ll_defs in
     let ll_create_func = StringMap.find ll_create ll_funcs in
     let ll_push_func = StringMap.find ll_push ll_funcs in
-    let ll_pop_func = StringMap.find ll_pop ll_funcs in
+    let ll_remove_func = StringMap.find ll_remove ll_funcs in
+    let ll_next_func = StringMap.find ll_next ll_funcs in
     let ll_get_func = StringMap.find ll_get ll_funcs in
     let ll_print_func = StringMap.find ll_print ll_funcs in
     let ll_size_func = StringMap.find ll_size ll_funcs in
+    let ll_dup_func = StringMap.find ll_dup ll_funcs in
+    let ll_del_func = StringMap.find ll_del ll_funcs in
 
     (* hash table functions *)
     let ht_create  = "ht_create" in
@@ -627,6 +637,77 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ) in
             let accum_final = L.build_call func [|arg_func;a';addr|] "accumfinal" builder in
             (builder, accum_final)
+        | SFunCall((_,SId("lfold")), [(_,f);(_,a);(_,l)]) ->
+            let (builder, arg_func) = expr parent_func builder f in
+            let (builder, a') = expr parent_func builder a in
+            let (builder, addr) = expr parent_func builder l in
+            let accum_typ = L.type_of a' in
+            let f_name = "lfold" ^ (str_of_ltyp accum_typ) in
+            let func = (match L.lookup_function f_name the_module with
+                Some f -> f
+                | None -> (
+                    let arg_func_typ = L.type_of arg_func in
+                    let addr_typ = L.type_of addr in
+                    let (func, function_builder) = make_func f_name [(arg_func_typ,"f");(accum_typ,"a");(addr_typ,"l")] accum_typ in
+
+                    let (function_builder, arg_func) = expr func function_builder (SId("f")) in
+                    let (function_builder, a') = expr func function_builder (SId("a")) in
+                    let (function_builder, addr) = expr func function_builder (SId("l")) in
+
+                    let i_addr = L.build_alloca i32_t "iaddr" function_builder in
+                    ignore(L.build_store zero i_addr function_builder);
+                    let accum_addr = L.build_malloc (L.type_of a') "accum" function_builder in
+                    ignore(L.build_store a' accum_addr function_builder);
+
+                    let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listltyp" function_builder in
+                    let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
+                    let head_node = L.build_load addr_head "headnode" function_builder in
+                    let curr_node = L.build_malloc (L.pointer_type ll_node) "currnode" function_builder in
+                    ignore(L.build_store head_node curr_node function_builder);
+
+                    let ltyp_ptr = L.element_type (L.type_of addr_t) in
+                    let len = L.build_call ll_size_func [|head_node|] "len" function_builder in
+
+                    let cond_bb = L.append_block context "cond" func in
+                    let cond_builder = L.builder_at_end context cond_bb in
+                    let i = L.build_load i_addr "i" cond_builder in
+                    let cond = L.build_icmp L.Icmp.Slt i len "lessthan" cond_builder in
+
+                    let body_bb = L.append_block context "foldbody" func in
+                    let body_builder = L.builder_at_end context body_bb in
+
+                    let node = L.build_load curr_node "node" body_builder in
+                    let c_data = L.build_call ll_get_func [|node;zero|] "cdata" body_builder in
+                    let data = L.build_bitcast c_data ltyp_ptr "data" body_builder in
+                    let data_load = L.build_load data "dataload" body_builder in
+
+                    let a = L.build_load accum_addr "accumload" body_builder in
+                    let a = L.build_call arg_func [|a;data_load|] "accumresult" body_builder in
+                    ignore(L.build_store a accum_addr body_builder);
+
+                    let i = L.build_add i one "i" body_builder in
+                    ignore(L.build_store i i_addr body_builder);
+
+                    let next_node = L.build_call ll_next_func [|node|] "nextnode" body_builder in
+                    ignore(L.build_store next_node curr_node body_builder);
+
+                    let merge_bb = L.append_block context "merge" func in
+
+                    ignore(L.build_br cond_bb function_builder);
+                    ignore(L.build_br cond_bb body_builder);
+                    ignore(L.build_cond_br cond body_bb merge_bb cond_builder);
+
+                    let function_builder = L.builder_at_end context merge_bb in
+                    let accum_final = L.build_load accum_addr "accumfinal" function_builder in
+
+                    ignore(L.build_ret accum_final function_builder);
+
+                    func
+                )
+            ) in
+            let accum_final = L.build_call func [|arg_func;a';addr|] "accumfinal" builder in
+            (builder, accum_final)
+
         | SAssign(v, (_,e)) ->
             let (builder, e') = expr parent_func builder e in
             Hashtbl.add var_tbl v e';
@@ -688,6 +769,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     in
                     cond_blocks
                 | STypMatchList(l) -> raise (Failure ("typmatch" ^ not_impl))
+                (* TODO: implement typmatch *)
             ) in
 
             ignore(L.build_br (List.hd cond_blocks) builder);

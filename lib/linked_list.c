@@ -41,21 +41,33 @@ ll_node *ll_push(ll_node *head, char *data) {
     return new_node;
 }
 
-ll_node *ll_pop(ll_node *head) {
-    ll_node *prev = head;
-    ll_node *curr = head->next;
+/* returns new head node */
+ll_node *ll_remove(ll_node *head, int n) {
+    ll_node *curr = head;
+    ll_node *prev;
 
-    if (curr == NULL) {
+    if (curr  == NULL) {
         return NULL;
     }
 
-    while(curr->next != NULL) {
+    for (int i = 0; i < n && curr->next != NULL; i++) {
         prev = curr;
         curr = curr->next;
     }
 
-    prev->next = NULL;
-    return curr;
+    if (prev != NULL) {
+        prev->next = curr->next;
+    } else {
+        head = head->next;
+    }
+
+    free(curr);
+
+    return head;
+}
+
+ll_node *ll_next(ll_node *node) {
+    return node->next;
 }
 
 char *ll_get(ll_node *head, int n) {
@@ -88,6 +100,38 @@ int ll_size(ll_node *head) {
         curr = curr->next;
     }
     return i;
+}
+
+ll_node *ll_dup(ll_node *head) {
+    ll_node *newhead;
+    ll_node *curr = head;
+
+    if (curr == NULL) {
+        return NULL;
+    }
+
+    newhead = ll_create(curr->data);
+    curr = curr->next;
+    while (curr != NULL) {
+        ll_push(newhead, curr->data);
+        curr = curr->next;
+    }
+
+    return newhead;
+}
+
+void ll_del(ll_node *head) {
+    ll_node *curr = head;
+    ll_node *temp;
+
+    while (curr != NULL) {
+        if (curr->data != NULL) {
+            free(curr->data);
+        }
+        temp = curr;
+        curr = curr->next;
+        free(temp);
+    }
 }
 
 /*

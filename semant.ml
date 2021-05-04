@@ -55,6 +55,7 @@ let check_ast ast =
             ("lprint", [List(String)], Int);
             ("lget", [List(String); (Int)], String);
             ("lsize", [List(String)], Int);
+            ("lfold", [Fun([String;String],String);String;List(String)], String);
             ("dprint", [Dict(String,String)], Int);
             ("dget", [Dict(String,String); String], String);
             ("dset", [Dict(String,String); String; String], Dict(String,String));
@@ -165,13 +166,17 @@ let check_ast ast =
     let rec check_valid_typ env t =
         let t = to_assc_typ env.tsym t in
         match t with
-            List(t') -> check_valid_typ env t';
+            List(t') ->
+                let vsym = check_valid_typ env t' in
+                add_built_in_list vsym t'
             | Dict(t1,t2) ->
-                check_valid_typ env t1;
-                check_valid_typ env t2;
+                let vsym = check_valid_typ env t1 in
+                let vsym = check_valid_typ (add_env_vsym env vsym) t2 in
+                add_built_in_dict vsym t1 t2
             | UserTypDef(utd) ->
-                let _ = find_in_map env.tdsym utd (utd ^ " not a defined type") in ()
-            | _ -> ()
+                let _ = find_in_map env.tdsym utd (utd ^ " not a defined type") in
+                env.vsym
+            | _ -> env.vsym
     in
     let check_last_stmt stmts t =
         let last_stmt = List.hd stmts in (* assume already reversed *)
@@ -208,21 +213,21 @@ let check_ast ast =
         | ReLit(r) -> ([Regex], SReLit r, env.vsym)
         | ListLit(t,l) ->
             check_none "list" t;
-            check_valid_typ env t;
+            let vsym = check_valid_typ env t in
             let err = "list literal type inconsistency" in
             let check_list (l, vsym) e =
                 let (e_typlist, se, vsym') = check_expr (add_env_vsym env vsym) e in
                 let _ = check_typlist e_typlist t err in
                 ((e_typlist, se)::l, vsym')
             in
-            let (slist, vsym) = List.fold_left check_list ([], env.vsym) l in 
-            let vsym' = add_built_in_list vsym t in
+            let (slist, vsym') = List.fold_left check_list ([], vsym) l in 
+            let vsym' = add_built_in_list vsym' t in
             ([List(t)], SListLit(t,(List.rev slist)), vsym')
         | DictLit(t1,t2,l) ->
             check_none "dictionary key" t1;
             check_none "dictionary value" t2;
-            check_valid_typ env t1;
-            check_valid_typ env t2;
+            let vsym = check_valid_typ env t1 in
+            let vsym = check_valid_typ (add_env_vsym env vsym) t2 in
             let keys = Hashtbl.create (List.length l) in
             let err = "dictionary literal type inconsistency" in
             let check_dict (l', vsym) (e1,e2) =
@@ -234,17 +239,17 @@ let check_ast ast =
                 let _ = check_typlist e2_typlist t2 err in
                 (((e1_typlist, e1'), (e2_typlist, e2'))::l', vsym'')
             in
-            let (slist, vsym) = List.fold_left check_dict ([], env.vsym) l in
-            let vsym' = add_built_in_dict vsym t1 t2 in
+            let (slist, vsym') = List.fold_left check_dict ([], vsym) l in
+            let vsym' = add_built_in_dict vsym' t1 t2 in
             ([Dict(t1,t2)], SDictLit(t1, t2, List.rev slist), vsym')
         | FunLit(f) ->
-            check_valid_typ env f.ftyp;
+            let vsym = check_valid_typ env f.ftyp in
             let check_formal vsym (t, id) =
                 check_none "formal argument" t;
-                check_valid_typ env t;
+                let vsym = check_valid_typ (add_env_vsym env vsym) t in
                 add_var vsym (id, [t])
             in
-            let temp_env = add_env_vsym env (List.fold_left check_formal env.vsym f.formals) in
+            let temp_env = add_env_vsym env (List.fold_left check_formal vsym f.formals) in
             let (_, sfblock) = List.fold_left check_stmt (temp_env, []) f.fblock in
             let _ = check_last_stmt sfblock f.ftyp in
             let f' = {
@@ -256,8 +261,11 @@ let check_ast ast =
             let formal_typs = List.map (fun (t,_) -> t) f'.sformals in
             let vsym = (match Fun(formal_typs, ret_typ) with
                 Fun([t;String],t') when t = t' ->
-                    add_built_in env.vsym ("sfold", [Fun([t;String],t);t;String], t)
-                | _ -> env.vsym
+                    let vsym = add_built_in vsym ("sfold", [Fun([t;String],t);t;String], t) in
+                    add_built_in vsym ("lfold", [Fun([t;String],t);t;List(String)], t)
+                | Fun([t;x],t') when t = t' ->
+                    add_built_in vsym ("lfold", [Fun([t;x],t);t;List(x)], t)
+                | _ -> vsym
             )
             in
             ([Fun(formal_typs, ret_typ)], SFunLit(f'), vsym)
@@ -287,9 +295,9 @@ let check_ast ast =
             (typlist, SUnop(o, (typlist, se)), vsym)
         | Cast(l,e) ->
             List.iter (fun t -> check_none "cast" t) l;
-            List.iter (fun t -> check_valid_typ env t) l;
+            let vsym = List.fold_left (fun vsym t -> check_valid_typ env t) env.vsym l in
             let at = to_assc_typ env.tsym (List.hd l) in
-            let (typlist, se, vsym) = check_expr env e in
+            let (typlist, se, vsym) = check_expr (add_env_vsym env vsym) e in
             let e_at = to_assc_typ env.tsym (List.hd typlist) in
             if at = e_at then
                 (l, SCast(l, (typlist, se)), vsym)
@@ -379,8 +387,8 @@ let check_ast ast =
             in
             try_def (List.hd fun_defs) (List.tl fun_defs) 
         | Match(m) ->
-            check_valid_typ env m.mtyp;
-            let (input_typlist, input_se, vsym) = check_expr env m.minput in
+            let vsym = check_valid_typ env m.mtyp in
+            let (input_typlist, input_se, vsym) = check_expr (add_env_vsym env vsym) m.minput in
             let smatchlist = match m.matchlist with
                 ValMatchList(l) ->
                     let (last_e,_) = List.hd (List.rev l) in
@@ -409,9 +417,10 @@ let check_ast ast =
                         | (t,_)::tl -> (match t with DefaultTyp -> () | _ -> find_default tl)
                     in find_default l;
                     let check_block blocks (t_or_d, stmts) =
-                        (match t_or_d with
+                        let vsym = (match t_or_d with
                             TypMatch(t) -> check_valid_typ env t
-                            | DefaultTyp -> ());
+                            | DefaultTyp -> env.vsym
+                        ) in
                         let temp_env = add_env_vsym env vsym in
                         let (_,sstmts) = List.fold_left check_stmt (temp_env, []) stmts in
                         let _ = check_last_stmt sstmts m.mtyp in
@@ -426,8 +435,8 @@ let check_ast ast =
             } in
             ([m'.smtyp], SMatch(m'), vsym)
         | IfElse(i) ->
-            check_valid_typ env i.ityp;
-            let (cond_typlist, cond_se, vsym) = check_expr env i.icond in
+            let vsym = check_valid_typ env i.ityp in
+            let (cond_typlist, cond_se, vsym) = check_expr (add_env_vsym env vsym) i.icond in
             let at = to_assc_typ env.tsym (List.hd cond_typlist) in
             (match at with
                 Bool -> ()
@@ -446,8 +455,8 @@ let check_ast ast =
             } in
             ([i'.sityp], SIfElse(i'), vsym)
         | While(w) ->
-            check_valid_typ env w.wtyp;
-            let (cond_typlist, cond_se, vsym) = check_expr env w.wcond in
+            let vsym = check_valid_typ env w.wtyp in
+            let (cond_typlist, cond_se, vsym) = check_expr (add_env_vsym env vsym) w.wcond in
             let at = to_assc_typ env.tsym (List.hd cond_typlist) in
             (match at with
                 Bool -> ()
