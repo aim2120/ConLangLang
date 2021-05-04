@@ -25,10 +25,16 @@ f3 = <dict<int,string> d, int e:dict<int,string>>{
 };
 lfold(f3,d,l);
 
-d = lfold(f2bang,d,l);
+lfold(f2bang,d,l);
 lfold(f3,d,l);
 
 lremove(l,0);
 lremove(l,0);
 
+lfold(f3,d,l);
+
+ladd(l,5);
+ladd(l,6);
+
+lfold(f2bang,d,l);
 lfold(f3,d,l);

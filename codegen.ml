@@ -172,7 +172,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     (* start stdlib functions *)
     (* linked list functions *)
     let ll_create = "ll_create" in
-    let ll_push   = "ll_push" in
+    let ll_add   = "ll_add" in
     let ll_next   = "ll_next" in
     let ll_get    = "ll_get" in
     let ll_remove = "ll_remove" in
@@ -182,7 +182,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ll_del    = "ll_del" in
     let ll_defs = [
         (ll_create, (L.pointer_type ll_node), [|string_t|]);
-        (ll_push, (L.pointer_type ll_node), [|L.pointer_type ll_node; string_t|]);
+        (ll_add, (L.pointer_type ll_node), [|L.pointer_type ll_node; string_t|]);
         (ll_next, (L.pointer_type ll_node), [|L.pointer_type ll_node|]);
         (ll_get, (string_t), [|L.pointer_type ll_node; i32_t|]);
         (ll_remove, (L.pointer_type ll_node), [|L.pointer_type ll_node;i32_t|]);
@@ -193,7 +193,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     ] in
     let ll_funcs = List.fold_left declare_funcs StringMap.empty ll_defs in
     let ll_create_func = StringMap.find ll_create ll_funcs in
-    let ll_push_func = StringMap.find ll_push ll_funcs in
+    let ll_add_func = StringMap.find ll_add ll_funcs in
     let ll_next_func = StringMap.find ll_next ll_funcs in
     let ll_get_func = StringMap.find ll_get ll_funcs in
     let ll_remove_func = StringMap.find ll_remove ll_funcs in
@@ -206,7 +206,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ht_create  = "ht_create" in
     let ht_hash    = "ht_hash" in
     let ht_newpair = "ht_newpair" in
-    let ht_set     = "ht_set" in
+    let ht_add     = "ht_add" in
     let ht_get     = "ht_get" in
     let ht_remove  = "ht_remove" in
     let ht_print   = "ht_print" in
@@ -218,7 +218,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         (ht_newpair, (L.pointer_type ht_entry), [|string_t; string_t|]);
         (ht_get, string_t, [|(L.pointer_type ht_t); string_t|]);
         (ht_remove, (L.pointer_type ht_t), [|(L.pointer_type ht_t); string_t|]);
-        (ht_set, (L.pointer_type ht_t), [|(L.pointer_type ht_t); string_t; string_t|]);
+        (ht_add, (L.pointer_type ht_t), [|(L.pointer_type ht_t); string_t; string_t|]);
         (ht_print, i32_t, [|(L.pointer_type ht_t)|]);
         (ht_size, i32_t, [|L.pointer_type ht_t|]);
         (ht_keys, (L.pointer_type string_t), [|L.pointer_type ht_t|]);
@@ -227,7 +227,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ht_create_func = StringMap.find ht_create ht_funcs in
     let ht_hash_func = StringMap.find ht_hash ht_funcs in
     let ht_newpair_func = StringMap.find ht_newpair ht_funcs in
-    let ht_set_func = StringMap.find ht_set ht_funcs in
+    let ht_add_func = StringMap.find ht_add ht_funcs in
     let ht_get_func = StringMap.find ht_get ht_funcs in
     let ht_remove_func = StringMap.find ht_remove ht_funcs in
     let ht_print_func = StringMap.find ht_print ht_funcs in
@@ -325,7 +325,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 let (builder, e') = expr parent_func builder e in
                 let data = make_addr e' ltyp true builder in
                 let c_data = L.build_bitcast data string_t ("cdata" ^ i') builder in
-                let addr = L.build_call ll_push_func [|last_node; c_data|] ("node" ^ i') builder in
+                let addr = L.build_call ll_add_func [|last_node; c_data|] ("node" ^ i') builder in
                 (if L.is_null addr then raise (Failure "malloc failed") else ());
                 (builder, addr, i+1)
             in
@@ -368,7 +368,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 let v_data = make_addr v' ltyp2 true builder in
                 let c_k_data = L.build_bitcast k_data string_t ("ckdata" ^ i') builder in
                 let c_v_data = L.build_bitcast v_data string_t ("cvdata" ^ i') builder in
-                let ht = L.build_call ht_set_func [|ht;c_k_data;c_v_data|] "" builder in
+                let ht = L.build_call ht_add_func [|ht;c_k_data;c_v_data|] "" builder in
                 (if L.is_null ht then raise (Failure "malloc failed") else ());
                 (builder, i+1)
             in
@@ -460,6 +460,37 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ) in
             (builder, out)
 
+        | SFunCall((_,SId("ladd")), [(_, l); (_,e)]) ->
+            let (builder, addr) = expr parent_func builder l in
+            let (builder, e') = expr parent_func builder e in
+            let addr_typ = L.type_of addr in
+            let f_name = "ladd" ^ (str_of_ltyp addr_typ) in
+            let func = (match L.lookup_function f_name the_module with
+                Some f -> f
+                | None -> (
+                    let ltyp = L.type_of e' in
+                    let (func, function_builder) = make_func f_name [(addr_typ,"l");(ltyp,"e")] addr_typ in
+
+                    let (function_builder, addr) = expr func function_builder (SId("l")) in
+                    let (function_builder, e') = expr func function_builder (SId("e")) in
+
+                    let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" function_builder in
+                    let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
+                    let head_node = L.build_load addr_head "headnode" function_builder in
+
+                    let data = make_addr e' ltyp true function_builder in
+                    let c_data = L.build_bitcast data string_t "cdata" function_builder in
+
+                    ignore(L.build_call ll_add_func [|head_node;c_data|] "" function_builder);
+                    ignore(L.build_ret addr function_builder);
+
+                    func
+                )
+            )
+            in
+            let addr' = L.build_call func [|addr;e'|] "ladd" builder in
+            (builder, addr')
+
         | SFunCall((_,SId("dadd")), [(_, dict); (_,k); (_,v)]) ->
             let (builder, addr) = expr parent_func builder dict in
             let (builder, k')   = expr parent_func builder k in
@@ -490,7 +521,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let c_k_data = L.build_bitcast k_data string_t "ckdata" function_builder in
                     let c_v_data = L.build_bitcast v_data string_t "cvdata" function_builder in
                     let ht = L.build_load addr_ht "ht" function_builder in
-                    let ht' = L.build_call ht_set_func [|ht;c_k_data;c_v_data|] "ht_" function_builder in
+                    let ht' = L.build_call ht_add_func [|ht;c_k_data;c_v_data|] "ht_" function_builder in
                     (if L.is_null ht' then raise (Failure "malloc failed") else ());
                     ignore(L.build_store ht' addr_ht function_builder);
                     ignore(L.build_ret addr function_builder);
@@ -591,8 +622,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
                     let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" function_builder in
                     let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
-                    let ltyp_ptr = L.build_load addr_t "t*" function_builder in
-                    let ltyp = L.type_of (L.build_load ltyp_ptr "t" function_builder) in
                     let head_node = L.build_load addr_head "headnode" function_builder in
                     let head_node' = L.build_call ll_remove_func [|head_node;n'|] "headnode_" function_builder in
                     ignore(L.build_store head_node' addr_head function_builder);

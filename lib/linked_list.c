@@ -26,7 +26,7 @@ ll_node *ll_create(char *data) {
     return new_node;
 }
 
-ll_node *ll_push(ll_node *head, char *data) {
+ll_node *ll_add(ll_node *head, char *data) {
     ll_node *curr = head;
     if (curr == NULL) {
         return NULL;
@@ -113,7 +113,7 @@ ll_node *ll_dup(ll_node *head) {
     newhead = ll_create(curr->data);
     curr = curr->next;
     while (curr != NULL) {
-        ll_push(newhead, curr->data);
+        ll_add(newhead, curr->data);
         curr = curr->next;
     }
 
@@ -141,8 +141,8 @@ int main() {
     char *x1;
     char *x2;
     ll_node *head = ll_create("a");
-    ll_push(head, "b");
-    ll_push(head, "c");
+    ll_add(head, "b");
+    ll_add(head, "c");
     x0 = ll_get(head, 0);
     x1 = ll_get(head, 1);
     x2 = ll_get(head, 2);
