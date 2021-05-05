@@ -109,6 +109,9 @@ let check_ast ast =
             ("dfold",
                 [Fun([String;String;String],String);String;Dict(String,String)],
                 String);
+            ("dmap",
+                [Fun([String;String],String);Dict(String,String)],
+                Dict(String,String));
             ("rematch",
                 [Regex;String],
                 Bool);
@@ -321,6 +324,10 @@ let check_ast ast =
                     add_built_in vsym ("lfold", [Fun([t;x],t);t;List(x)], t)
                 | Fun([t;x;y],t') when t = t' ->
                     add_built_in vsym ("dfold", [Fun([t;x;y],t);t;Dict(x,y)], t)
+                | Fun([t],t') when t = t' ->
+                        add_built_in vsym ("lmap", [Fun([t],t);List(t)], List(t))
+                | Fun([k;v],v') when v = v' ->
+                        add_built_in vsym ("dmap", [Fun([k;v],v);Dict(k,v)], Dict(k,v))
                 | _ -> vsym
             )
             in

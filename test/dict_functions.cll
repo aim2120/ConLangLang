@@ -1,32 +1,32 @@
-d = <int,int>{0:-0};
-d2 = <string,string>{};
+int_dict = <int,int>{0:-0};
+string_dict = <string,string>{};
 
-sprint((string)(dget(d,0)));
+sprint((string)(dget(int_dict,0)));
 
-dadd(d,1,-1);
+dadd(int_dict,1,-1);
 
-sprint((string)(dget(d,1)));
-sprint((string)(dsize(d)));
+sprint((string)(dget(int_dict,1)));
+sprint((string)(dsize(int_dict)));
 
-f = <string a, string k, string v:string>{
+string_of_dict = <string a, string k, string v:string>{
     a ^ k ^ ':' ^ v ^ ' ';
 };
 
-dadd(d2,'a','A');
-dadd(d2,'b','B');
-dadd(d2,'c','C');
-dadd(d2,'d','D');
+dadd(string_dict,'a','A');
+dadd(string_dict,'b','B');
+dadd(string_dict,'c','C');
+dadd(string_dict,'d','D');
 
-sprint((string)(dmem(d2,'a')));
-sprint((string)(dmem(d2,'z')));
+sprint((string)(dmem(string_dict,'a')));
+sprint((string)(dmem(string_dict,'z')));
 
-s = dfold(f,'',d2);
+s = dfold(string_of_dict,'',string_dict);
 sprint(s);
-d2 = dremove(d2,'d');
-s = dfold(f,'',d2);
+string_dict = dremove(string_dict,'d');
+s = dfold(string_of_dict,'',string_dict);
 sprint(s);
 
-f2 = <int a, int k, int v:int>{
+sum_keys = <int a, int k, int v:int>{
     if:int (k % 2 == 0) {
         sprint('even key: ' ^ ((string)k));
     } else {
@@ -35,7 +35,7 @@ f2 = <int a, int k, int v:int>{
     a + k;
 };
 
-f3 = <int a, int k, int v:int>{
+sum_values = <int a, int k, int v:int>{
     if:int (v % 2 == 0) {
         sprint('even value: ' ^ ((string)v));
     } else {
@@ -44,18 +44,25 @@ f3 = <int a, int k, int v:int>{
     a + v;
 };
 
-dadd(d,2,-2);
-dadd(d,3,-3);
-dadd(d,4,-4);
+dadd(int_dict,2,-2);
+dadd(int_dict,3,-3);
+dadd(int_dict,4,-4);
 
-sprint((string)(dmem(d,2)));
-sprint((string)(dmem(d,9)));
+sprint((string)(dmem(int_dict,2)));
+sprint((string)(dmem(int_dict,9)));
 
-sprint((string)(dsize(d)));
+sprint((string)(dsize(int_dict)));
 
-keysum = dfold(f2,0,d);
-valsum = dfold(f3,0,d);
+keysum = dfold(sum_keys,0,int_dict);
+valsum = dfold(sum_values,0,int_dict);
 
 sprint((string)keysum);
 sprint((string)valsum);
 
+add_value_bang = <string k, string v:string> {
+    v ^ '!';
+};
+
+string_dict_bang = dmap(add_value_bang,string_dict);
+s = dfold(string_of_dict,'',string_dict_bang);
+sprint(s);

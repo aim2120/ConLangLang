@@ -16,6 +16,10 @@ string_of_list = <string a,string e:string>{
     a ^ e ^ ' ';
 };
 
+string_of_int_list = <string a, int e:string>{
+    a ^ ((string)e) ^ ' ';
+};
+
 
 add_bang = <string s:string> {
     s ^ '!';
@@ -24,6 +28,11 @@ add_bang = <string s:string> {
 print_list = <string s:string> {
     sprint(s);
     s;
+};
+
+print_dict = <dict<int,string> d, int e:dict<int,string>>{
+    sprint(dget(d,e));
+    d;
 };
 
 str = lfold(string_of_list,'',string_list);
@@ -45,19 +54,18 @@ make_int_string_dict_bang = <dict<int,string> d, int e:dict<int,string>>{
 
 d = lfold(make_int_string_dict,<int,string>{},int_list);
 
-print_dict = <dict<int,string> d, int e:dict<int,string>>{
-    sprint(dget(d,e));
-    d;
-};
+sprint(lfold(string_of_int_list,'',int_list));
 lfold(print_dict,d,int_list);
 
 lfold(make_int_string_dict_bang,d,int_list);
+sprint(lfold(string_of_int_list,'',int_list));
 lfold(print_dict,d,int_list);
 
 lremove(int_list);
 n = lsize(int_list);
 lremove(int_list,n);
 
+sprint(lfold(string_of_int_list,'',int_list));
 lfold(print_dict,d,int_list);
 
 ladd(int_list,888);
@@ -65,6 +73,12 @@ n = lsize(int_list);
 ladd(int_list,999,n);
 
 lfold(make_int_string_dict_bang,d,int_list);
+sprint(lfold(string_of_int_list,'',int_list));
 lfold(print_dict,d,int_list);
 
+times_10 = <int x:int>{
+    x * 10;
+};
 
+int_list_times_10 = lmap(times_10,int_list);
+sprint(lfold(string_of_int_list,'',int_list_times_10));

@@ -309,6 +309,35 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             func
         in
 
+        let make_dadd_func (f_name : string) (addr : L.llvalue) (k' : L.llvalue) (v' : L.llvalue) =
+            let addr_typ = L.type_of addr in
+            let k_typ = L.type_of k' in
+            let v_typ = L.type_of v' in
+            let (func, function_builder) = make_func f_name [(addr_typ,"d");(k_typ,"k");(v_typ,"v")] addr_typ in
+            
+            (* building dadd function *)
+            let (function_builder, addr) = expr func function_builder (SId("d")) in
+            let (function_builder, k')   = expr func function_builder (SId("k")) in
+            let (function_builder, v')   = expr func function_builder (SId("v")) in
+            
+            let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" function_builder in
+            let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" function_builder in
+            let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" function_builder in
+            let ltyp1 = L.element_type (L.element_type (L.type_of addr_t1)) in
+            let ltyp2 = L.element_type (L.element_type (L.type_of addr_t2)) in
+            
+            let k_data = make_addr k' ltyp1 false function_builder in
+            let v_data = make_addr v' ltyp2 false function_builder in
+            let c_k_data = L.build_bitcast k_data string_t "ckdata" function_builder in
+            let c_v_data = L.build_bitcast v_data string_t "cvdata" function_builder in
+            let ht = L.build_load addr_ht "ht" function_builder in
+            let ht' = L.build_call ht_add_func [|ht;c_k_data;c_v_data|] "ht_" function_builder in
+            (if L.is_null ht' then raise (Failure "malloc failed") else ());
+            ignore(L.build_store ht' addr_ht function_builder);
+            ignore(L.build_ret addr function_builder);
+            func
+        in
+
         let make_lfold_func (f_name : string) (arg_func : L.llvalue) (a' : L.llvalue) (addr : L.llvalue) =
 
             let arg_func_typ = L.type_of arg_func in
@@ -643,38 +672,10 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, addr) = expr parent_func builder dict in
             let (builder, k')   = expr parent_func builder k in
             let (builder, v')   = expr parent_func builder v in
-            let addr_typ = L.type_of addr in
-            let f_name = "dadd" ^ (str_of_ltyp addr_typ) in
+            let f_name = "dadd" ^ (str_of_ltyp (L.type_of addr)) in
             let func = (match L.lookup_function f_name the_module with
                 Some f -> f
-                | None -> (
-                    let addr_typ = L.type_of addr in
-                    let k_typ = L.type_of k' in
-                    let v_typ = L.type_of v' in
-                    let (func, function_builder) = make_func f_name [(addr_typ,"d");(k_typ,"k");(v_typ,"v")] addr_typ in
-
-                    (* building dadd function *)
-                    let (function_builder, addr) = expr func function_builder (SId("d")) in
-                    let (function_builder, k')   = expr func function_builder (SId("k")) in
-                    let (function_builder, v')   = expr func function_builder (SId("v")) in
-
-                    let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" function_builder in
-                    let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" function_builder in
-                    let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" function_builder in
-                    let ltyp1 = L.element_type (L.element_type (L.type_of addr_t1)) in
-                    let ltyp2 = L.element_type (L.element_type (L.type_of addr_t2)) in
-
-                    let k_data = make_addr k' ltyp1 false function_builder in
-                    let v_data = make_addr v' ltyp2 false function_builder in
-                    let c_k_data = L.build_bitcast k_data string_t "ckdata" function_builder in
-                    let c_v_data = L.build_bitcast v_data string_t "cvdata" function_builder in
-                    let ht = L.build_load addr_ht "ht" function_builder in
-                    let ht' = L.build_call ht_add_func [|ht;c_k_data;c_v_data|] "ht_" function_builder in
-                    (if L.is_null ht' then raise (Failure "malloc failed") else ());
-                    ignore(L.build_store ht' addr_ht function_builder);
-                    ignore(L.build_ret addr function_builder);
-                    func
-                )
+                | None -> make_dadd_func f_name addr k' v'
             )
             in
             let addr = L.build_call func [|addr;k';v'|] "dadd" builder in
@@ -1030,7 +1031,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let wrapper_func = (match L.lookup_function wrapper_f_name the_module with
                 Some f -> f
                 | None ->
-                    let (wrapper_func, function_builder) = make_func ("foldwrapper" ^ arg_func_name) [(addr_typ,"a");(ltyp,"e")] addr_typ in
+                    let (wrapper_func, function_builder) = make_func wrapper_f_name [(addr_typ,"a");(ltyp,"e")] addr_typ in
 
                     let (function_builder, a') = expr wrapper_func function_builder (SId("a")) in
                     let (function_builder, e') = expr wrapper_func function_builder (SId("e")) in
@@ -1058,6 +1059,54 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
             let accum_final = L.build_call lfold_func [|wrapper_func;new_list_addr;addr|] "accumfinal" builder in
             (builder, accum_final)
+
+        | SFunCall((t,SId("dmap")), [(typlist_f,f);(typlist_d,d)]) ->
+            let (builder, arg_func) = expr parent_func builder f in
+            let (builder, addr) = expr parent_func builder d in
+
+            (* initiate empty list *)
+            let (t1, t2) = match (assc_typ_of_typlist typlist_d) with A.Dict(t1,t2) -> (t1,t2) | _ -> raise (Failure internal_err) in
+            let (builder, new_dict_addr) = expr parent_func builder (SDictLit(t1,t2,[])) in
+
+            let addr_typ = L.type_of addr in
+            let arg_func_name = L.value_name arg_func in
+            let ltyp1 = ltyp_of_typ t1 in
+            let ltyp2 = ltyp_of_typ t2 in
+
+            let wrapper_f_name = "foldwrapper" ^ arg_func_name in
+            let wrapper_func = (match L.lookup_function wrapper_f_name the_module with
+                Some f -> f
+                | None ->
+                    let (wrapper_func, function_builder) = make_func wrapper_f_name [(addr_typ,"a");(ltyp1,"k");(ltyp2,"v")] addr_typ in
+
+                    let (function_builder, a') = expr wrapper_func function_builder (SId("a")) in
+                    let (function_builder, k') = expr wrapper_func function_builder (SId("k")) in
+                    let (function_builder, v') = expr wrapper_func function_builder (SId("v")) in
+
+                    let dadd_f_name = "dadd" ^ str_of_ltyp addr_typ in
+                    let dadd_func = (match L.lookup_function dadd_f_name the_module with
+                        Some f -> f
+                        | None -> make_dadd_func dadd_f_name addr k' v'
+                    ) in
+
+                    let v' = L.build_call arg_func [|k';v'|] "e" function_builder in
+                    let addr' = L.build_call dadd_func [|a';k';v'|] "ladd" function_builder in
+                    ignore(L.build_ret addr' function_builder);
+
+                    wrapper_func
+            ) in
+
+            let f_name_suf = (str_of_ltyp addr_typ) ^ (str_of_ltyp addr_typ) in
+            let f_name = "dfold" ^ f_name_suf in
+
+            let dfold_func = (match L.lookup_function f_name the_module with
+                Some f -> f
+                | None -> make_dfold_func f_name wrapper_func new_dict_addr addr
+            ) in
+
+            let accum_final = L.build_call dfold_func [|wrapper_func;new_dict_addr;addr|] "accumfinal" builder in
+            (builder, accum_final)
+
 
         | SFunCall((_,SId("rematch")), [(_,r);(_,s)]) ->
             let (builder, regex) = expr parent_func builder r in
