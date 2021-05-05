@@ -172,10 +172,6 @@ let check_ast ast =
         hd::tl -> (try check_typlist typlist1 hd err with Failure(_) -> check_typlists typlist1 tl err)
         | [] -> make_err err
     in
-    let check_none s t = match t with
-        Null -> make_err (s ^ " cannot be of type none")
-        | _ -> ()
-    in
     let rec check_valid_typ env t =
         let t = to_assc_typ env.tsym t in
         match t with
@@ -225,7 +221,6 @@ let check_ast ast =
         | StrLit(s) -> ([String], SStrLit s, env.vsym)
         | ReLit(r) -> ([Regex], SReLit r, env.vsym)
         | ListLit(t,l) ->
-            check_none "list" t;
             let vsym = check_valid_typ env t in
             let err = "list literal type inconsistency" in
             let check_list (l, vsym) e =
@@ -237,8 +232,6 @@ let check_ast ast =
             let vsym' = add_built_in_list vsym' t in
             ([List(t)], SListLit(t,(List.rev slist)), vsym')
         | DictLit(t1,t2,l) ->
-            check_none "dictionary key" t1;
-            check_none "dictionary value" t2;
             let vsym = check_valid_typ env t1 in
             let vsym = check_valid_typ (add_env_vsym env vsym) t2 in
             let keys = Hashtbl.create (List.length l) in
@@ -258,7 +251,6 @@ let check_ast ast =
         | FunLit(f) ->
             let vsym = check_valid_typ env f.ftyp in
             let check_formal vsym (t, id) =
-                check_none "formal argument" t;
                 let vsym = check_valid_typ (add_env_vsym env vsym) t in
                 add_var vsym (id, [t])
             in
@@ -309,7 +301,6 @@ let check_ast ast =
             | _ -> make_err "unary operation on operand of incorrect type");
             (typlist, SUnop(o, (typlist, se)), vsym)
         | Cast(l,e) ->
-            List.iter (fun t -> check_none "cast" t) l;
             let vsym = List.fold_left (fun vsym t -> check_valid_typ env t) env.vsym l in
             let at = to_assc_typ env.tsym (List.hd l) in
             let (typlist, se, vsym) = check_expr (add_env_vsym env vsym) e in
@@ -487,7 +478,6 @@ let check_ast ast =
             ([w'.swtyp], SWhile(w'), vsym)
         | Expr(e) ->
             check_expr env e
-        | NullExpr -> ([Null], SNullExpr, env.vsym)
     
     in
     let (env, sast) = List.fold_left check_stmt (empty_env, []) ast 

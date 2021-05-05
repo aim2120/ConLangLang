@@ -131,10 +131,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             (L.pointer_type (L.function_type ltyp f_typs))
         | A.UserTyp(ut)  -> Hashtbl.find ut_typs ut
         | A.UserTypDef(utd) -> L.pointer_type (fst (Hashtbl.find utd_typs utd))
-        | _        -> raise (Failure ("type" ^ not_impl))
-(* TODO
-        | A.Null   -> void_t
-*)
     in
 
     (* Creating top-level function *)
@@ -1146,13 +1142,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let addr_pos = L.build_in_bounds_gep e' [|zero;L.const_int i32_t pos|] (name ^ "." ^ s) builder in
             let out = L.build_load addr_pos ("load" ^ s) builder in
             (builder, out)
-        | _ -> raise (Failure ("expr" ^ not_impl))
-        (* TODO
 
-        | SReLit(r) -> ()
-
-        | SNullExpr -> ()
-                    *)
     and stmt (func, builder, out) = function
         SExprStmt(e) ->
             let (builder', out') = expr func builder (snd e) in

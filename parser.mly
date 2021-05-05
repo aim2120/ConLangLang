@@ -7,7 +7,7 @@ open Ast
 %token LPAREN RPAREN LCURLY RCURLY LSQUARE RSQUARE LANGLE RANGLE COLON SEMI COMMA
 %token DOT MINUS TIMES DIVIDE MOD PLUS CONCAT
 %token NOT AND OR EQ LT GT ASSIGN
-%token INT BOOL FLOAT STRING REGEX LIST DICT FUN NONE NULL
+%token INT BOOL FLOAT STRING REGEX LIST DICT FUN
 %token TYP TYPDEF
 %token MATCH BYVAL BYTYP DEFAULT WHILE IF ELSE
 %token <int> INTLIT
@@ -86,7 +86,6 @@ expr:
     | IF COLON typ LPAREN expr RPAREN LCURLY stmtblock RCURLY ELSE LCURLY stmtblock RCURLY { IfElse({icond=$5; ityp=$3; ifblock=(List.rev $8); elseblock=(List.rev $12);}) }
     | WHILE COLON typ LPAREN expr RPAREN LCURLY stmtblock RCURLY { While({wcond=$5; wtyp=$3; wblock=(List.rev $8);}) }
     | LPAREN expr RPAREN { Expr($2) }
-    | NULL { NullExpr }
 
 /*
 
@@ -161,5 +160,4 @@ typ:
     | FUN LANGLE typlist_opt COLON typ RANGLE { Fun($3, $5) }
     | UT { UserTyp($1) }
     | UTD { UserTypDef($1) }
-    | NONE { Null }
 

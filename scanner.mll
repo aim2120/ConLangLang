@@ -47,8 +47,6 @@ rule token = parse
 | "list"   { LIST }
 | "dict"   { DICT }
 | "fun"    { FUN }
-| "none"   { NONE }
-| "null"   { NULL }
 | "type"   { TYP }
 | "typedef" { TYPDEF }
 | "match"  { MATCH }

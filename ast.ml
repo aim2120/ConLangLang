@@ -10,7 +10,6 @@ type typ = Int | Bool | Float | String | Regex
   | Fun of typ list * typ
   | UserTyp of string
   | UserTypDef of string
-  | Null
 
 type typ_or_def = TypMatch of typ | DefaultTyp
 
@@ -36,7 +35,6 @@ type expr =
   | IfElse of ifelse
   | While of whle
   | Expr of expr
-  | NullExpr
 and funlit = {
     formals: (typ * string) list;
     ftyp: typ;
@@ -99,7 +97,6 @@ let rec string_of_typ = function
   | Fun(f,t) -> "fun" ^ "<" ^ String.concat ", " (List.map (fun t -> string_of_typ t) f) ^ ":" ^ string_of_typ t ^ ">"
   | UserTyp(u) -> u
   | UserTypDef(u) -> u
-  | Null -> "none"
 
 let string_of_typ_or_def = function
     TypMatch(t) -> string_of_typ t
@@ -116,7 +113,6 @@ let rec string_of_expr = function
       String.concat "," (List.map (fun p -> string_of_expr (fst p) ^ ":" ^ string_of_expr (snd p)) d) ^ "}"
   | FunLit(f) -> "<" ^ String.concat ", " (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) f.formals) ^ ":" ^
     string_of_typ f.ftyp ^ ">{" ^ string_of_stmtblock f.fblock ^ "}"
-  | NullExpr -> "null"
   | Binop(e1, o, e2) ->
       string_of_expr e1 ^ " " ^ string_of_binop o ^ " " ^ string_of_expr e2
   | Unop(o, e) -> string_of_uop o ^ string_of_expr e
