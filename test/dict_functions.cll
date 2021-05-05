@@ -1,4 +1,5 @@
 d = <int,int>{0:-0};
+d2 = <string,string>{};
 
 sprint((string)(dget(d,0)));
 
@@ -11,11 +12,13 @@ f = <string a, string k, string v:string>{
     a ^ k ^ ':' ^ v ^ ' ';
 };
 
-d2 = <string,string>{};
 dadd(d2,'a','A');
 dadd(d2,'b','B');
 dadd(d2,'c','C');
 dadd(d2,'d','D');
+
+sprint((string)(dmem(d2,'a')));
+sprint((string)(dmem(d2,'z')));
 
 s = dfold(f,'',d2);
 sprint(s);
@@ -44,6 +47,9 @@ f3 = <int a, int k, int v:int>{
 dadd(d,2,-2);
 dadd(d,3,-3);
 dadd(d,4,-4);
+
+sprint((string)(dmem(d,2)));
+sprint((string)(dmem(d,9)));
 
 sprint((string)(dsize(d)));
 

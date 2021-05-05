@@ -305,6 +305,14 @@ hashtable_t *ht_remove(hashtable_t *hashtable, char *key) {
     return hashtable;
 }
 
+bool ht_mem( hashtable_t *hashtable, char *key ) {
+    if (ht_get(hashtable, key) == NULL) {
+        return false;
+    } else {
+        return true;
+    }
+}
+
 /* Retrieve a key-value pair from a hash table. */
 char *ht_get( hashtable_t *hashtable, char *key ) {
     int bin = 0;

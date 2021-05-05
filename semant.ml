@@ -88,6 +88,9 @@ let check_ast ast =
             ("dprint",
                 [Dict(String,String)],
                 Int);
+            ("dmem",
+                [Dict(String,String); String],
+                Bool);
             ("dget",
                 [Dict(String,String); String],
                 String);
@@ -116,9 +119,9 @@ let check_ast ast =
         let l = [
             ("lprint", [List(t)], Int);
             ("lmem", [List(t);t], Int);
-            ("lget", [List(t); Int], t);
-            ("ladd", [List(t); t], List(t));
-            ("ladd", [List(t); t; Int], List(t));
+            ("lget", [List(t);Int], t);
+            ("ladd", [List(t);t], List(t));
+            ("ladd", [List(t);t; Int], List(t));
             ("lremove", [List(t)], List(t));
             ("lremove", [List(t); Int], List(t));
             ("lsize", [List(t)], Int);
@@ -128,8 +131,9 @@ let check_ast ast =
     let add_built_in_dict vsym t1 t2 =
         let l = [
             ("dprint", [Dict(t1,t2)], Int);
-            ("dget", [Dict(t1,t2); t1], t2);
-            ("dadd", [Dict(t1,t2); t1; t2], Dict(t1,t2));
+            ("dmem", [Dict(t1,t2);t1], Bool);
+            ("dget", [Dict(t1,t2);t1], t2);
+            ("dadd", [Dict(t1,t2);t1; t2], Dict(t1,t2));
             ("dremove", [Dict(t1,t2); t1], Dict(t1,t2));
             ("dsize", [Dict(t1,t2)], Int);
         ] in

@@ -212,6 +212,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ht_hash    = "ht_hash" in
     let ht_newpair = "ht_newpair" in
     let ht_add     = "ht_add" in
+    let ht_mem     = "ht_mem" in
     let ht_get     = "ht_get" in
     let ht_remove  = "ht_remove" in
     let ht_print   = "ht_print" in
@@ -221,6 +222,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         (ht_create, (L.pointer_type ht_t), [|i32_t; i1_t|]);
         (ht_hash, i32_t, [|(L.pointer_type ht_t); string_t|]);
         (ht_newpair, (L.pointer_type ht_entry), [|string_t; string_t|]);
+        (ht_mem, i1_t, [|(L.pointer_type ht_t); string_t|]);
         (ht_get, string_t, [|(L.pointer_type ht_t); string_t|]);
         (ht_remove, (L.pointer_type ht_t), [|(L.pointer_type ht_t); string_t|]);
         (ht_add, (L.pointer_type ht_t), [|(L.pointer_type ht_t); string_t; string_t|]);
@@ -233,6 +235,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ht_hash_func = StringMap.find ht_hash ht_funcs in
     let ht_newpair_func = StringMap.find ht_newpair ht_funcs in
     let ht_add_func = StringMap.find ht_add ht_funcs in
+    let ht_mem_func = StringMap.find ht_mem ht_funcs in
     let ht_get_func = StringMap.find ht_get ht_funcs in
     let ht_remove_func = StringMap.find ht_remove ht_funcs in
     let ht_print_func = StringMap.find ht_print ht_funcs in
@@ -589,6 +592,39 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             in
             let n = L.build_call func [|addr;e'|] "lmem" builder in
             (builder, n)
+
+        | SFunCall((_,SId("dmem")), [(_, dict); (_,k)]) ->
+            let (builder, addr) = expr parent_func builder dict in
+            let (builder, k') = expr parent_func builder k in
+            let addr_typ = L.type_of addr in
+            let f_name = "dmem" ^ (str_of_ltyp addr_typ) in
+            let func = (match L.lookup_function f_name the_module with
+                Some f -> f
+                | None -> (
+                    let k_typ = L.type_of k' in
+                    let (func, function_builder) = make_func f_name [(addr_typ,"d");(k_typ,"k")] i1_t in
+
+                    (* building dget function *)
+                    let (function_builder, addr) = expr func function_builder (SId("d")) in
+                    let (function_builder, k')   = expr func function_builder (SId("k")) in
+
+                    let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" function_builder in
+                    let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" function_builder in
+                    let ht = L.build_load addr_ht "ht" function_builder in
+                    let ltyp1 = L.element_type (L.element_type (L.type_of addr_t1)) in
+
+                    let k_data = make_addr k' ltyp1 false function_builder in
+                    let c_k_data = L.build_bitcast k_data string_t "ckdata" function_builder in
+                    let is_mem = L.build_call ht_mem_func [|ht;c_k_data|] "dmem" function_builder in
+                    ignore(L.build_ret is_mem function_builder);
+
+                    func
+                )
+            ) in
+            let is_mem = L.build_call func [|addr;k'|] "dmem" builder in
+            (builder, is_mem)
+
+
 
         | SFunCall((_,SId("lget")), [(_, l); (_,n)]) ->
             let (builder, addr) = expr parent_func builder l in
