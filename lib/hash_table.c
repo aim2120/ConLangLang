@@ -17,6 +17,7 @@
 #include <stdbool.h>
 #include "hash_table.h"
 #include "find_prime.h"
+#include "linked_list.h"
 
 struct entry_s {
     char *key;
@@ -382,6 +383,20 @@ char **ht_keys(hashtable_t *hashtable) {
     }
 
     return keys;
+};
+
+ll_node *ht_keys_list(hashtable_t *hashtable) {
+    ll_node *head_key = NULL;
+
+    for (int i = 0; i < hashtable->size; i++) {
+        entry_t *pair = hashtable->table[i];
+        while (pair != NULL) {
+            head_key = ll_add(head_key, pair->key, 0);
+            pair = pair->next;
+        }
+    }
+
+    return head_key;
 };
 
 int ht_print (hashtable_t *hashtable) {

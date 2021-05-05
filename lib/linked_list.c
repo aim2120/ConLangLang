@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+#include "linked_list.h"
 
 struct ll_node_s {
     char *data;

@@ -112,6 +112,9 @@ let check_ast ast =
             ("dmap",
                 [Fun([String;String],String);Dict(String,String)],
                 Dict(String,String));
+            ("dkeys",
+                [Dict(String,String)],
+                List(String));
             ("rematch",
                 [Regex;String],
                 Bool);
@@ -142,6 +145,7 @@ let check_ast ast =
             ("dadd", [Dict(t1,t2);t1; t2], Dict(t1,t2));
             ("dremove", [Dict(t1,t2); t1], Dict(t1,t2));
             ("dsize", [Dict(t1,t2)], Int);
+            ("dkeys", [Dict(t1,t2)], List(t1));
         ] in
         List.fold_left add_built_in vsym l
     in
