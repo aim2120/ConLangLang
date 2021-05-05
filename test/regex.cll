@@ -4,3 +4,16 @@ if:int (rematch(r,'abc')) {
 } else {
     sprint('no match');
 };
+
+r2 = "r(in)+(on)*g";
+s = 'rininining';
+s2 = resub(r2,s,'on',1);
+sprint(s);
+sprint(s2);
+
+r3 = "r(o*(long))+(o*(lin))*";
+s3 = 'rolonglong';
+s4 = resub(r3,s3,'lin',2);
+sprint(s3);
+sprint(s4);
+

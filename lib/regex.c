@@ -4,14 +4,14 @@
 #include <stdbool.h>
 #include <string.h>
 
-const int BUFSIZE = 1000;
+const int BUFSIZE = 5;
 
 regex_t *re_create(char *r) {
     regex_t *regex;
     if ((regex = malloc (sizeof(regex_t))) == NULL) {
         return NULL;
     }
-    if (regcomp(regex, r, 0)) return NULL;
+    if (regcomp(regex, r, REG_EXTENDED)) return NULL;
     return regex;
 }
 
@@ -19,23 +19,66 @@ bool re_match(regex_t *r, char *s) {
     return regexec(r, s, 0, NULL, 0) == 0;
 }
 
+char *re_sub(regex_t *r, char *s, char *t, int n) {
+    char *new_s;
+    char *s_ = s;
+    int s_len, t_len, match_len, new_s_len;
+    int match_start, match_end;
+    int ret;
+
+    while (1) {
+        regmatch_t buf[n+1];
+
+        if (regexec(r, s_, n+1, buf, 0)) return s_;
+        
+        match_start = buf[n].rm_so;
+        match_end = buf[n].rm_eo;
+        if (match_start < 0) {
+            printf("finished\n");
+            break;
+        }
+
+        s_len = strlen(s_);
+        t_len = strlen(t);
+        match_len = match_end-match_start;
+
+        new_s_len = (s_len - match_len) + t_len + 1;
+
+        if ((new_s = malloc (sizeof(char *) * new_s_len)) == NULL) {
+            return NULL;
+        }
+
+        memmove(new_s, s_, match_start);
+        memmove(&new_s[match_start], t, t_len);
+        memmove(&new_s[match_start+t_len], &s_[match_end], s_len-match_end);
+        new_s[new_s_len-1] = '\0';
+
+        s_ = new_s;
+    }
+
+    return s_;
+}
+
 /*
 int main() {
     regex_t *regex;
     regmatch_t buf[BUFSIZE];
 
-    regex = re_create("a.*");
+    regex = re_create("(r(on)+g)");
 
+    if (regex == NULL) {
+        printf("regex not created\n");
+    }
 
-    if (re_match(regex,"abc")) {
-        printf("MATCH\n");
-    } else {
+    if (regexec(regex, "rononong", BUFSIZE, buf, 0)) {
         printf("NO MATCH\n");
+    } else {
+        for (int i = 0; i < BUFSIZE; i++) {
+            printf("%lld %lld\n", buf[i].rm_so, buf[i].rm_eo);
+        }
     }
 
-    ret = regexec(&regex, "abc", BUFSIZE, buf, 0);
-    for (int i = 0; i < BUFSIZE; i++) {
-        printf("%lld %lld\n", buf[i].rm_so, buf[i].rm_eo);
-    }
+    char * new_s = re_sub(regex,"rononong", "in", 2);
+    printf("%s\n", new_s);
 }
 */

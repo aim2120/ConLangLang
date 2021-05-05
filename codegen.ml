@@ -241,6 +241,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     (* regex functions *)
     let re_create_func : L.llvalue = declare_func ("re_create", L.pointer_type regex_t, [|string_t|]) false in
     let re_match_func : L.llvalue = declare_func ("re_match", i1_t, [|L.pointer_type regex_t;string_t|]) false in
+    let re_sub_func : L.llvalue = declare_func ("re_sub", string_t, [|L.pointer_type regex_t;string_t;string_t;i32_t|]) false in
 
     (* end stdlib functions *)
     (* end external functions *)
@@ -937,6 +938,14 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, addr) = expr parent_func builder s in
             let out = L.build_call re_match_func [|regex;addr|] "rematch" builder in
             (builder, out)
+
+        | SFunCall((_,SId("resub")), [(_,r);(_,s);(_,t);(_,n)]) ->
+            let (builder, regex) = expr parent_func builder r in
+            let (builder, s_addr) = expr parent_func builder s in
+            let (builder, t_addr) = expr parent_func builder t in
+            let (builder, n') = expr parent_func builder n in
+            let new_s_addr = L.build_call re_sub_func [|regex;s_addr;t_addr;n'|] "resub" builder in
+            (builder, new_s_addr)
 
         | SAssign(v, (_,e)) ->
             let (builder, e') = expr parent_func builder e in

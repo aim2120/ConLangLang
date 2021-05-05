@@ -10,7 +10,7 @@ for t in ./test/*.cll; do
     echo "MAKING OUTPUT FOR ${filename}"
     ./bin/make_test_exe.sh $filename
     if [ $? -eq 2 ]; then
-        echo "${red}!!!NO OUTPUT FOR $filename${reset}!!!"
+        echo "${red}!!!NO OUTPUT FOR $filename!!!${reset}"
         continue
     fi
     outfile="test/${filename}.out"
