@@ -66,6 +66,7 @@ let check_ast ast =
             ("dremove", [Dict(String,String); String], Dict(String,String));
             ("dsize", [Dict(String,String)], Int);
             ("dfold", [Fun([String;String;String],String);String;Dict(String,String)], String);
+            ("rematch", [Regex;String], Bool);
         ] in
         List.fold_left add_built_in StringMap.empty l
     in

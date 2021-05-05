@@ -1,0 +1,6 @@
+r = "a.*";
+if:int (rematch(r,'abc')) {
+    sprint('match');
+} else {
+    sprint('no match');
+};

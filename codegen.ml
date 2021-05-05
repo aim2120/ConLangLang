@@ -53,6 +53,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ht_t = L.named_struct_type context "hashtable_s"
     in L.struct_set_body ht_t [|i32_t; i32_t; L.pointer_type (L.pointer_type ht_entry); i1_t|] false;
 
+    (* matches structs in lib/regex.c *)
+    let re_guts = L.named_struct_type context "re_guts" in
+    let regex_t = L.named_struct_type context "regex_t" in
+    L.struct_set_body regex_t [|i32_t;i64_t;string_t;L.pointer_type re_guts|] false;
+    let regmatch_t = L.named_struct_type context "regmatch_t" in
+    L.struct_set_body regmatch_t [|i64_t;i64_t|] false;
+
     (* convenient numbers/strings *)
     let zero = L.const_int i32_t 0 in
     let one = L.const_int i32_t 1 in
@@ -82,6 +89,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         | A.Bool   -> i1_t
         | A.Float  -> float_t
         | A.String -> string_t
+        | A.Regex  -> L.pointer_type regex_t
         | A.List(t)->
             (*
              * struct list { t1 *dummy; ll_node *head; }
@@ -126,7 +134,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         | _        -> raise (Failure ("type" ^ not_impl))
 (* TODO
         | A.Null   -> void_t
-        | A.Regex  ->
 *)
     in
 
@@ -230,6 +237,11 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ht_print_func = StringMap.find ht_print ht_funcs in
     let ht_size_func = StringMap.find ht_size ht_funcs in
     let ht_keys_func = StringMap.find ht_keys ht_funcs in
+
+    (* regex functions *)
+    let re_create_func : L.llvalue = declare_func ("re_create", L.pointer_type regex_t, [|string_t|]) false in
+    let re_match_func : L.llvalue = declare_func ("re_match", i1_t, [|L.pointer_type regex_t;string_t|]) false in
+
     (* end stdlib functions *)
     (* end external functions *)
 
@@ -292,6 +304,10 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             String.iteri store_char (s ^ "\x00");
             (builder, addr)
 
+        | SReLit(r) ->
+            let (builder, addr) = expr parent_func builder (SStrLit(r)) in
+            let regex = L.build_call re_create_func [|addr|] "regex" builder in
+            (builder,regex)
         | SListLit(t, l) ->
             let list_t = L.element_type (ltyp_of_typ (A.List(t))) in
             let ltyp = ltyp_of_typ t in
@@ -915,6 +931,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ) in
             let accum_final = L.build_call func [|arg_func;a';addr|] "accumfinal" builder in
             (builder, accum_final)
+
+        | SFunCall((_,SId("rematch")), [(_,r);(_,s)]) ->
+            let (builder, regex) = expr parent_func builder r in
+            let (builder, addr) = expr parent_func builder s in
+            let out = L.build_call re_match_func [|regex;addr|] "rematch" builder in
+            (builder, out)
 
         | SAssign(v, (_,e)) ->
             let (builder, e') = expr parent_func builder e in
