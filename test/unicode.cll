@@ -1,0 +1,15 @@
+s = 'κάνω';
+t = 'ει';
+r = "ω";
+
+sprint(s);
+
+if:int (rematch(r,s)) {
+    sprint('match');
+} else {
+    sprint('no match');
+};
+
+s_ = resub(r,s,t,0);
+
+sprint(s_);
