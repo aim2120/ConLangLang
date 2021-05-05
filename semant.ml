@@ -404,9 +404,6 @@ let check_ast ast =
         | Id(id) ->
             let typlist = find_in_map env.vsym id (id ^ " not defined") in
             (typlist, SId(id), env.vsym)
-        | UTDId(id) ->
-            let typlist = find_in_map env.vsym id (id ^ " not defined") in
-            (typlist, SUTDId(id), env.vsym)
         | FunCall(e,l) ->
             let make_actuals (vsym, actuals) a =
                 let (a_typlist, a_e, vsym') = check_expr (add_env_vsym env vsym) a in

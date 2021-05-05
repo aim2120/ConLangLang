@@ -29,7 +29,6 @@ type expr =
   | Assign of string * expr
   | TypDefAssign of string * string * (string * expr) list
   | Id of string
-  | UTDId of string
   | FunCall of expr * expr list
   | Match of mtch
   | IfElse of ifelse
@@ -126,7 +125,6 @@ let rec string_of_expr = function
       string_of_stmtblock i.ifblock ^ "} else {" ^ string_of_stmtblock i.elseblock ^ "}"
   | While(w) -> "while:" ^ string_of_typ w.wtyp ^ " (" ^ string_of_expr w.wcond ^ ") {" ^ string_of_stmtblock w.wblock ^ "}"
   | Id(v) -> v
-  | UTDId(v) -> v
   | Expr(e) -> "(" ^ string_of_expr e ^ ")"
 and string_of_expr_or_def = function
     ExprMatch(e) -> string_of_expr e

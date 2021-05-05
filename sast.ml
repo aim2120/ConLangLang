@@ -20,7 +20,6 @@ and sx =
   | SAssign of string * sexpr
   | STypDefAssign of string * string * (string * sexpr) list
   | SId of string
-  | SUTDId of string
   | SFunCall of sexpr * sexpr list
   | SMatch of smtch
   | SIfElse of sifelse
@@ -83,7 +82,6 @@ let rec string_of_sexpr sexpr =
       string_of_sstmtblock i.sifblock ^ "} else {\n" ^ string_of_sstmtblock i.selseblock ^ "}"
   | SWhile(w) -> "while:" ^ string_of_typ w.swtyp ^ " (" ^ string_of_sexpr w.swcond ^ ") {\n" ^ string_of_sstmtblock w.swblock ^ "}"
   | SId(v) -> v
-  | SUTDId(v) -> v
   in "(typs: " ^ String.concat ", " (List.map string_of_typ (fst sexpr)) ^ ")" ^ s
 and string_of_sexpr_or_def = function
     SExprMatch(e) -> string_of_sexpr e

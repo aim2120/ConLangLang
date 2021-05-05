@@ -1098,10 +1098,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             in
             (builder, e')
 
-        | SUTDId(v) ->
-            let e' = Hashtbl.find var_tbl v in
-            (builder, e')
-
         | SMatch(m) ->
             let merge_bb = L.append_block context "merge" parent_func in
             let build_br_merge = L.build_br merge_bb in
