@@ -1,9 +1,15 @@
-r = "a.*";
-if:int (rematch(r,'abc')) {
-    sprint('match');
-} else {
-    sprint('no match');
+r = "(abc)+";
+f = <regex r, string s:int> {
+    if:int (rematch(r,s)) {
+        sprint('match');
+    } else {
+        sprint('no match');
+    };
 };
+
+f(r,'abc');
+f(r,'xxxxabcabcxxxxx');
+f(r,'aaa');
 
 r2 = "r(in)+(on)*g";
 s = 'rininining';
@@ -11,8 +17,8 @@ s2 = resub(r2,s,'on',1);
 sprint(s);
 sprint(s2);
 
-r3 = "r(o*(long))+(o*(lin))*";
-s3 = 'rolonglong';
+r3 = "r(o*(lo(ng)*))+(o*(lin))*";
+s3 = 'rololongolong';
 s4 = resub(r3,s3,'lin',2);
 sprint(s3);
 sprint(s4);

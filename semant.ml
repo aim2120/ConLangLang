@@ -49,31 +49,73 @@ let check_ast ast =
     in
     let built_in_funs =
         let l = [
-            ("sprint", [String], Int);
-            ("ssize", [String], Int);
-            ("sfold", [Fun([String;String],String);String;String], String);
-            ("lprint", [List(String)], Int);
-            ("lget", [List(String); (Int)], String);
-            ("ladd", [List(String); String], List(String));
-            ("ladd", [List(String); String; Int], List(String));
-            ("lremove", [List(String)], List(String));
-            ("lremove", [List(String); Int], List(String));
-            ("lsize", [List(String)], Int);
-            ("lfold", [Fun([String;String],String);String;List(String)], String);
-            ("dprint", [Dict(String,String)], Int);
-            ("dget", [Dict(String,String); String], String);
-            ("dadd", [Dict(String,String); String; String], Dict(String,String));
-            ("dremove", [Dict(String,String); String], Dict(String,String));
-            ("dsize", [Dict(String,String)], Int);
-            ("dfold", [Fun([String;String;String],String);String;Dict(String,String)], String);
-            ("rematch", [Regex;String], Bool);
-            ("resub", [Regex;String;String;Int], String);
+            ("sprint",
+                [String],
+                Int);
+            ("ssize",
+                [String],
+                Int);
+            ("sfold",
+                [Fun([String;String],String);String;String],
+                String);
+            ("lprint",
+                [List(String)],
+                Int);
+            ("lmem",
+                [List(String);String],
+                Int);
+            ("lget",
+                [List(String);Int],
+                String);
+            ("ladd",
+                [List(String);String],
+                List(String));
+            ("ladd",
+                [List(String);String; Int],
+                List(String));
+            ("lremove",
+                [List(String)],
+                List(String));
+            ("lremove",
+                [List(String); Int],
+                List(String));
+            ("lsize",
+                [List(String)],
+                Int);
+            ("lfold",
+                [Fun([String;String],String);String;List(String)],
+                String);
+            ("dprint",
+                [Dict(String,String)],
+                Int);
+            ("dget",
+                [Dict(String,String); String],
+                String);
+            ("dadd",
+                [Dict(String,String); String; String],
+                Dict(String,String));
+            ("dremove",
+                [Dict(String,String); String],
+                Dict(String,String));
+            ("dsize",
+                [Dict(String,String)],
+                Int);
+            ("dfold",
+                [Fun([String;String;String],String);String;Dict(String,String)],
+                String);
+            ("rematch",
+                [Regex;String],
+                Bool);
+            ("resub",
+                [Regex;String;String;Int],
+                String);
         ] in
         List.fold_left add_built_in StringMap.empty l
     in
     let add_built_in_list vsym t =
         let l = [
             ("lprint", [List(t)], Int);
+            ("lmem", [List(t);t], Int);
             ("lget", [List(t); Int], t);
             ("ladd", [List(t); t], List(t));
             ("ladd", [List(t); t; Int], List(t));

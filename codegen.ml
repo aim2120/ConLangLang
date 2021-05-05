@@ -64,6 +64,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let zero = L.const_int i32_t 0 in
     let one = L.const_int i32_t 1 in
     let two = L.const_int i32_t 2 in
+    let tru = L.const_int i1_t 1 in
+    let fals = L.const_int i1_t 0 in
     let not_impl = " not implemented" in
     let internal_err = "internal error" in
 
@@ -175,8 +177,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     (* start stdlib functions *)
     (* linked list functions *)
     let ll_create = "ll_create" in
-    let ll_add   = "ll_add" in
+    let ll_add    = "ll_add" in
     let ll_next   = "ll_next" in
+    let ll_mem    = "ll_mem" in
     let ll_get    = "ll_get" in
     let ll_remove = "ll_remove" in
     let ll_print  = "ll_print" in
@@ -186,6 +189,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         (ll_create, (L.pointer_type ll_node), [|string_t|]);
         (ll_add, (L.pointer_type ll_node), [|L.pointer_type ll_node;string_t;i32_t|]);
         (ll_next, (L.pointer_type ll_node), [|L.pointer_type ll_node|]);
+        (ll_mem, (i32_t), [|L.pointer_type ll_node;string_t;i1_t|]);
         (ll_get, (string_t), [|L.pointer_type ll_node; i32_t|]);
         (ll_remove, (L.pointer_type ll_node), [|L.pointer_type ll_node;i32_t|]);
         (ll_print, i32_t, [|L.pointer_type ll_node|]);
@@ -196,6 +200,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ll_create_func = StringMap.find ll_create ll_funcs in
     let ll_add_func = StringMap.find ll_add ll_funcs in
     let ll_next_func = StringMap.find ll_next ll_funcs in
+    let ll_mem_func = StringMap.find ll_mem ll_funcs in
     let ll_get_func = StringMap.find ll_get ll_funcs in
     let ll_remove_func = StringMap.find ll_remove ll_funcs in
     let ll_print_func = StringMap.find ll_print ll_funcs in
@@ -529,8 +534,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" function_builder in
                     let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" function_builder in
                     let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" function_builder in
-                    let ltyp1 = L.type_of (L.build_load (L.build_load addr_t1 "t1*" function_builder) "t1" function_builder) in
-                    let ltyp2 = L.type_of (L.build_load (L.build_load addr_t2 "t2*" function_builder) "t2" function_builder) in
+                    let ltyp1 = L.element_type (L.element_type (L.type_of addr_t1)) in
+                    let ltyp2 = L.element_type (L.element_type (L.type_of addr_t2)) in
 
                     let k_data = make_addr k' ltyp1 false function_builder in
                     let v_data = make_addr v' ltyp2 false function_builder in
@@ -548,16 +553,54 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let addr = L.build_call func [|addr;k';v'|] "dadd" builder in
             (builder, addr)
 
+        | SFunCall((_,SId("lmem")), [(_, l); (_,e)]) ->
+            let (builder, addr) = expr parent_func builder l in
+            let (builder, e') = expr parent_func builder e in
+            let addr_typ = L.type_of addr in
+            let f_name = "lmem" ^ (str_of_ltyp addr_typ) in
+            let func = (match L.lookup_function f_name the_module with
+                Some f -> f
+                | None -> (
+                    let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" builder in
+                    let t = L.element_type (L.element_type (L.type_of addr_t)) in
+                    let (func, function_builder) = make_func f_name [(addr_typ,"l");(t,"e")] i32_t in
+
+                    let (function_builder, addr) = expr func function_builder (SId("l")) in
+                    let (function_builder, e') = expr func function_builder (SId("e")) in
+
+                    let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" function_builder in
+                    let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
+                    let ltyp_ptr = L.build_load addr_t "t*" function_builder in
+                    let head_node = L.build_load addr_head "headnode" function_builder in
+
+                    let data = make_addr e' t false function_builder in
+                    let c_data = L.build_bitcast data string_t "cdata" function_builder in
+
+                    let n = if t = string_t then
+                        L.build_call ll_mem_func [|head_node;c_data;tru|] "cdata" function_builder
+                    else
+                        L.build_call ll_mem_func [|head_node;c_data;fals|] "cdata" function_builder
+                    in
+                    ignore(L.build_ret n function_builder);
+
+                    func
+                )
+            )
+            in
+            let n = L.build_call func [|addr;e'|] "lmem" builder in
+            (builder, n)
+
         | SFunCall((_,SId("lget")), [(_, l); (_,n)]) ->
             let (builder, addr) = expr parent_func builder l in
             let (builder, n') = expr parent_func builder n in
-            let f_name = "lget" ^ (str_of_ltyp (L.type_of addr)) in
+            let addr_type = L.type_of addr in
+            let f_name = "lget" ^ (str_of_ltyp addr_type) in
             let func = (match L.lookup_function f_name the_module with
                 Some f -> f
                 | None -> (
                     let addr_typ = L.type_of addr in
                     let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" builder in
-                    let t = L.type_of (L.build_load (L.build_load addr_t "t*" builder) "t" builder) in
+                    let t = L.element_type (L.element_type (L.type_of addr_t)) in
                     let (func, function_builder) = make_func f_name [(addr_typ,"l");(i32_t,"n")] t in
 
                     let (function_builder, addr) = expr func function_builder (SId("l")) in
@@ -566,7 +609,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" function_builder in
                     let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
                     let ltyp_ptr = L.build_load addr_t "t*" function_builder in
-                    let ltyp = L.type_of (L.build_load ltyp_ptr "t" function_builder) in
 
                     let head_node = L.build_load addr_head "headnode" function_builder in
                     let c_data = L.build_call ll_get_func [|head_node;n'|] "cdata" function_builder in
@@ -591,7 +633,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 | None -> (
                     let k_typ = L.type_of k' in
                     let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" builder in
-                    let v_typ = L.type_of (L.build_load (L.build_load addr_t2 "t2*" builder) "t2" builder) in
+                    let v_typ = L.element_type (L.element_type (L.type_of addr_t2)) in
                     let (func, function_builder) = make_func f_name [(addr_typ,"d");(k_typ,"k")] v_typ in
 
                     (* building dget function *)

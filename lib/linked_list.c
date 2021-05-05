@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 
 struct ll_node_s {
     char *data;
@@ -55,6 +56,37 @@ ll_node *ll_add(ll_node *head, char *data, int n) {
     }
 
     return head;
+}
+
+int ll_mem(ll_node *head, char *data, bool is_string) {
+    ll_node *curr = head;
+    char *data_;
+    char *currdata_;
+    int n = -1;
+    int i = 0;
+    bool addr_cmp = false, str_cmp = false;
+
+    if (is_string) {
+        data_ = *(char **)data;
+    }
+
+    while (curr != NULL) {
+        addr_cmp = memcmp( data, curr->data, 1) == 0;
+
+        if (is_string) {
+            currdata_ = *(char **)(curr->data);
+            str_cmp = strcmp(data_, currdata_) == 0;
+        }
+
+        if (addr_cmp || str_cmp) {
+            n = i;
+            break;
+        }
+        curr = curr->next;
+        i++;
+    }
+
+    return n;
 }
 
 /* returns new head node */

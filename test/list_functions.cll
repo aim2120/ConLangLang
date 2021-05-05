@@ -1,8 +1,17 @@
 l = <int>[0,1,2,3,4];
-sprint((string)(lget(l,5)));
-sprint((string)(lsize(l)));
-
 l2 = <string>['a','b','c'];
+
+sprint((string)(lget(l,4)));
+sprint((string)(lget(l2,2)));
+
+sprint((string)(lsize(l)));
+sprint((string)(lsize(l2)));
+
+sprint((string)(lmem(l,3)));
+sprint((string)(lmem(l,9)));
+sprint((string)(lmem(l2,'b')));
+sprint((string)(lmem(l2,'z')));
+
 f = <string a,string e:string>{
     a ^ e ^ '-';
 };
