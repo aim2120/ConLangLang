@@ -85,6 +85,9 @@ let check_ast ast =
             ("lfold",
                 [Fun([String;String],String);String;List(String)],
                 String);
+            ("lmap",
+                [Fun([String],String);List(String)],
+                List(String));
             ("dprint",
                 [Dict(String,String)],
                 Int);

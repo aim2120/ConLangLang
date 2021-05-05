@@ -33,7 +33,7 @@ ll_node *ll_add(ll_node *head, char *data, int n) {
     ll_node *new_node;
 
     if (curr == NULL) {
-        return NULL;
+        return ll_create(data);
     }
 
     for (int i = 0; i < n && curr != NULL; i++) {
@@ -115,11 +115,20 @@ ll_node *ll_remove(ll_node *head, int n) {
 }
 
 ll_node *ll_next(ll_node *node) {
+    if (node == NULL) {
+        return NULL;
+    }
+
     return node->next;
 }
 
 char *ll_get(ll_node *head, int n) {
     ll_node *curr = head;
+
+    if (curr == NULL) {
+        return NULL;
+    }
+
     for ( int i = 0; i < n && curr->next != NULL; i++ ) {
         curr = curr->next;
     }

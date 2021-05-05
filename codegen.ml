@@ -64,6 +64,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let zero = L.const_int i32_t 0 in
     let one = L.const_int i32_t 1 in
     let two = L.const_int i32_t 2 in
+    let max_int = L.const_int i32_t 2147483647 in
     let tru = L.const_int i1_t 1 in
     let fals = L.const_int i1_t 0 in
     let not_impl = " not implemented" in
@@ -251,6 +252,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     (* end external functions *)
 
     let rec expr parent_func builder (e : sx) =
+        let assc_typ_of_typlist typlist =
+            let t = List.hd typlist in
+            (match t with
+                A.UserTyp(ut) -> snd (StringMap.find ut env.tsym)
+                | _ -> t)
+        in
+
         let make_addr (e : L.llvalue) (t : L.lltype) (malloc : bool) (builder : L.llbuilder) =
             let addr = if malloc then L.build_malloc t "" builder else L.build_alloca t "" builder
             in
@@ -258,6 +266,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ignore(L.build_store e addr builder);
             addr
         in
+
         let make_func f_name formals_typs_and_names ret_typ =
             let formals_arr = Array.of_list (List.map (fun (t,_) -> t) formals_typs_and_names) in
             let func_typ = L.function_type ret_typ formals_arr in
@@ -277,11 +286,150 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             (func, function_builder)
         in
 
-        let load_if_complex e t builder =
-            match t with
-                A.List(_) | A.Dict(_) ->
-                    L.build_load e "load" builder
-                | _ -> e
+        let make_ladd_func (f_name : string) (addr : L.llvalue) (e' : L.llvalue) =
+            let addr_typ = L.type_of addr in
+            let ltyp = L.type_of e' in
+            let (func, function_builder) = make_func f_name [(addr_typ,"l");(ltyp,"e");i32_t,"n"] addr_typ in
+
+            let (function_builder, addr) = expr func function_builder (SId("l")) in
+            let (function_builder, e') = expr func function_builder (SId("e")) in
+            let (function_builder, n') = expr func function_builder (SId("n")) in
+
+            let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" function_builder in
+            let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
+            let head_node = L.build_load addr_head "headnode" function_builder in
+
+            let data = make_addr e' ltyp true function_builder in
+            let c_data = L.build_bitcast data string_t "cdata" function_builder in
+
+            let head_node' = L.build_call ll_add_func [|head_node;c_data;n'|] "" function_builder in
+            ignore(L.build_store head_node' addr_head function_builder);
+            ignore(L.build_ret addr function_builder);
+
+            func
+        in
+
+        let make_lfold_func (f_name : string) (arg_func : L.llvalue) (a' : L.llvalue) (addr : L.llvalue) =
+
+            let arg_func_typ = L.type_of arg_func in
+            let accum_typ = L.type_of a' in
+            let addr_typ = L.type_of addr in
+            let (func, function_builder) = make_func f_name [(arg_func_typ,"f");(accum_typ,"a");(addr_typ,"l")] accum_typ in
+
+            let (function_builder, arg_func) = expr func function_builder (SId("f")) in
+            let (function_builder, a') = expr func function_builder (SId("a")) in
+            let (function_builder, addr) = expr func function_builder (SId("l")) in
+
+            let i_addr = L.build_alloca i32_t "iaddr" function_builder in
+            ignore(L.build_store zero i_addr function_builder);
+            let accum_addr = L.build_malloc (L.type_of a') "accum" function_builder in
+            ignore(L.build_store a' accum_addr function_builder);
+
+            let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listltyp" function_builder in
+            let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
+            let head_node = L.build_load addr_head "headnode" function_builder in
+            let curr_node = L.build_malloc (L.pointer_type ll_node) "currnode" function_builder in
+            ignore(L.build_store head_node curr_node function_builder);
+
+            let ltyp_ptr = L.element_type (L.type_of addr_t) in
+            let len = L.build_call ll_size_func [|head_node|] "len" function_builder in
+
+            let cond_bb = L.append_block context "cond" func in
+            let cond_builder = L.builder_at_end context cond_bb in
+            let i = L.build_load i_addr "i" cond_builder in
+            let cond = L.build_icmp L.Icmp.Slt i len "lessthan" cond_builder in
+
+            let body_bb = L.append_block context "foldbody" func in
+            let body_builder = L.builder_at_end context body_bb in
+
+            let node = L.build_load curr_node "node" body_builder in
+            let c_data = L.build_call ll_get_func [|node;zero|] "cdata" body_builder in
+            let data = L.build_bitcast c_data ltyp_ptr "data" body_builder in
+            let data_load = L.build_load data "dataload" body_builder in
+
+            let a' = L.build_load accum_addr "accumload" body_builder in
+            let a' = L.build_call arg_func [|a';data_load|] "accumresult" body_builder in
+            ignore(L.build_store a' accum_addr body_builder);
+
+            let i = L.build_add i one "i" body_builder in
+            ignore(L.build_store i i_addr body_builder);
+
+            let next_node = L.build_call ll_next_func [|node|] "nextnode" body_builder in
+            ignore(L.build_store next_node curr_node body_builder);
+
+            let merge_bb = L.append_block context "merge" func in
+
+            ignore(L.build_br cond_bb function_builder);
+            ignore(L.build_br cond_bb body_builder);
+            ignore(L.build_cond_br cond body_bb merge_bb cond_builder);
+
+            let function_builder = L.builder_at_end context merge_bb in
+            let accum_final = L.build_load accum_addr "accumfinal" function_builder in
+
+            ignore(L.build_ret accum_final function_builder);
+
+            func
+        in
+
+        let make_dfold_func (f_name : string) (arg_func : L.llvalue) (a' : L.llvalue) (addr : L.llvalue) =
+            let arg_func_typ = L.type_of arg_func in
+            let accum_typ = L.type_of a' in
+            let addr_typ = L.type_of addr in
+            let (func, function_builder) = make_func f_name [(arg_func_typ,"f");(accum_typ,"a");(addr_typ,"d")] accum_typ in
+
+            let (function_builder, arg_func) = expr func function_builder (SId("f")) in
+            let (function_builder, a') = expr func function_builder (SId("a")) in
+            let (function_builder, addr) = expr func function_builder (SId("d")) in
+
+            let i_addr = L.build_alloca i32_t "iaddr" function_builder in
+            ignore(L.build_store zero i_addr function_builder);
+            let accum_addr = L.build_malloc (L.type_of a') "accum" function_builder in
+            ignore(L.build_store a' accum_addr function_builder);
+
+            let dictt1_addr = L.build_in_bounds_gep addr [|zero;zero|] "dictt1addr" function_builder in
+            let dictt2_addr = L.build_in_bounds_gep addr [|zero;one|] "dictt2addr" function_builder in
+            let t1_ptr = L.element_type (L.type_of dictt1_addr) in
+            let t2_ptr = L.element_type (L.type_of dictt2_addr) in
+            let dictht_addr = L.build_in_bounds_gep addr [|zero;two|] "dicthtaddr" function_builder in
+            let ht = L.build_load dictht_addr "ht" function_builder in
+            let keys = L.build_call ht_keys_func [|ht|] "keys" function_builder in
+            let size = L.build_call ht_size_func [|ht|] "size" function_builder in
+
+            let cond_bb = L.append_block context "cond" func in
+            let cond_builder = L.builder_at_end context cond_bb in
+            let i = L.build_load i_addr "i" cond_builder in
+            let cond = L.build_icmp L.Icmp.Slt i size "lessthan" cond_builder in
+
+            let body_bb = L.append_block context "foldbody" func in
+            let body_builder = L.builder_at_end context body_bb in
+
+            let curr_key_gep = L.build_in_bounds_gep keys [|i|] "currkeygep" body_builder in
+            let curr_key_c = L.build_load curr_key_gep "currkeyc" body_builder in
+            let curr_value_c = L.build_call ht_get_func [|ht;curr_key_c|] "currvaluec" body_builder in
+            let curr_key_addr = L.build_bitcast curr_key_c t1_ptr "currkeyaddr" body_builder in
+            let curr_value_addr = L.build_bitcast curr_value_c t2_ptr "currvalueaddr" body_builder in
+            let curr_key = L.build_load curr_key_addr "currkey" body_builder in
+            let curr_value = L.build_load curr_value_addr "currval" body_builder in
+
+            let a' = L.build_load accum_addr "accumload" body_builder in
+            let a' = L.build_call arg_func [|a';curr_key;curr_value|] "accumresult" body_builder in
+            ignore(L.build_store a' accum_addr body_builder);
+
+            let i = L.build_add i one "i" body_builder in
+            ignore(L.build_store i i_addr body_builder);
+
+            let merge_bb = L.append_block context "merge" func in
+
+            ignore(L.build_br cond_bb function_builder);
+            ignore(L.build_br cond_bb body_builder);
+            ignore(L.build_cond_br cond body_bb merge_bb cond_builder);
+
+            let function_builder = L.builder_at_end context merge_bb in
+            let accum_final = L.build_load accum_addr "accumfinal" function_builder in
+
+            ignore(L.build_ret accum_final function_builder);
+
+            func
         in
 
         match e with
@@ -328,27 +476,29 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ignore(L.build_store null_t addr_ltyp builder);
 
             let l' = List.rev (List.map (fun e -> snd e) l) in
-            let last = List.hd l' in
-            let the_rest = List.tl l' in
-            let len = List.length l' - 1 in
+            (match l' with
+                last::the_rest -> (
+                    let len = List.length l' - 1 in
+                    let (builder, last') = expr parent_func builder last in
+                    let data = make_addr last' ltyp true builder in
+                    let c_data = L.build_bitcast data string_t ("cdata" ^ string_of_int len) builder in
+                    let last_node = L.build_call ll_create_func [|c_data|] ("node" ^ string_of_int len) builder in
+                    (if L.is_null last_node then raise (Failure "malloc failed") else ());
 
-            let (builder, last') = expr parent_func builder last in
-            let data = make_addr last' ltyp true builder in
-            let c_data = L.build_bitcast data string_t ("cdata" ^ string_of_int len) builder in
-            let last_node = L.build_call ll_create_func [|c_data|] ("node" ^ string_of_int len) builder in
-            (if L.is_null last_node then raise (Failure "malloc failed") else ());
-
-            let add_node (builder, head_node, i) e =
-                let i' = string_of_int i in
-                let (builder, e') = expr parent_func builder e in
-                let data = make_addr e' ltyp true builder in
-                let c_data = L.build_bitcast data string_t ("cdata" ^ i') builder in
-                let head_node = L.build_call ll_add_func [|head_node; c_data; zero|] ("node" ^ i') builder in
-                (if L.is_null head_node then raise (Failure "malloc failed") else ());
-                (builder, head_node, i-1)
-            in
-            let (builder, head_node, _) = List.fold_left add_node (builder, last_node, len-1) the_rest in
-            ignore(L.build_store head_node addr_head builder);
+                    let add_node (builder, head_node, i) e =
+                        let i' = string_of_int i in
+                        let (builder, e') = expr parent_func builder e in
+                        let data = make_addr e' ltyp true builder in
+                        let c_data = L.build_bitcast data string_t ("cdata" ^ i') builder in
+                        let head_node = L.build_call ll_add_func [|head_node; c_data; zero|] ("node" ^ i') builder in
+                        (if L.is_null head_node then raise (Failure "malloc failed") else ());
+                        (builder, head_node, i-1)
+                    in
+                    let (builder, head_node, _) = List.fold_left add_node (builder, last_node, len-1) the_rest in
+                    ignore(L.build_store head_node addr_head builder);
+                )
+                | [] -> ignore(L.build_store (L.const_null (L.pointer_type ll_node)) addr_head builder);
+            );
             (builder, addr)
 
         | SDictLit(t1, t2, d) ->
@@ -395,12 +545,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             (builder, addr)
 
         | SBinop((typlist,e1), o, (_,e2)) ->
-            let t =
-                let t = List.hd typlist in
-                (match t with
-                    A.UserTyp(ut) -> snd (StringMap.find ut env.tsym)
-                    | _ -> t)
-            in
+            let t = assc_typ_of_typlist typlist in
             let (builder, e1') = expr parent_func builder e1 in
             let (builder, e2') = expr parent_func builder e2 in
             let out = (match t with
@@ -479,38 +624,17 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ) in
             (builder, out)
 
-        | SFunCall((t1,SId("ladd")), [(t2,l); (t3,e)]) ->
-            expr parent_func builder (SFunCall((t1,SId("ladd")), [(t2,l); (t3,e); ([A.Int],SIntLit(0))]))
+        | SFunCall((t,SId("ladd")), [(t_l,l); (t_e,e)]) ->
+            expr parent_func builder (SFunCall((t,SId("ladd")), [(t_l,l); (t_e,e); ([A.Int],SIntLit(0))]))
 
         | SFunCall((_,SId("ladd")), [(_,l); (_,e); (_,n)]) ->
             let (builder, addr) = expr parent_func builder l in
             let (builder, e') = expr parent_func builder e in
             let (builder, n') = expr parent_func builder n in
-            let addr_typ = L.type_of addr in
-            let f_name = "ladd" ^ (str_of_ltyp addr_typ) in
+            let f_name = "ladd" ^ (str_of_ltyp (L.type_of addr)) in
             let func = (match L.lookup_function f_name the_module with
                 Some f -> f
-                | None -> (
-                    let ltyp = L.type_of e' in
-                    let (func, function_builder) = make_func f_name [(addr_typ,"l");(ltyp,"e");i32_t,"n"] addr_typ in
-
-                    let (function_builder, addr) = expr func function_builder (SId("l")) in
-                    let (function_builder, e') = expr func function_builder (SId("e")) in
-                    let (function_builder, n') = expr func function_builder (SId("n")) in
-
-                    let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" function_builder in
-                    let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
-                    let head_node = L.build_load addr_head "headnode" function_builder in
-
-                    let data = make_addr e' ltyp true function_builder in
-                    let c_data = L.build_bitcast data string_t "cdata" function_builder in
-
-                    let head_node' = L.build_call ll_add_func [|head_node;c_data;n'|] "" function_builder in
-                    ignore(L.build_store head_node' addr_head function_builder);
-                    ignore(L.build_ret addr function_builder);
-
-                    func
-                )
+                | None -> make_ladd_func f_name addr e'
             ) in
             let addr' = L.build_call func [|addr;e';n'|] "ladd" builder in
             (builder, addr')
@@ -701,8 +825,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let v_data_load = L.build_call func [|addr;k'|] "dget" builder in
             (builder, v_data_load)
 
-        | SFunCall((t1,SId("lremove")), [(t2, l)]) ->
-            expr parent_func builder (SFunCall((t1,SId("lremove")), [(t2, l); ([A.Int],SIntLit(0))]))
+        | SFunCall((t,SId("lremove")), [(t_l, l)]) ->
+            expr parent_func builder (SFunCall((t,SId("lremove")), [(t_l, l); ([A.Int],SIntLit(0))]))
 
         | SFunCall((_,SId("lremove")), [(_, l); (_,n)]) ->
             let (builder, addr) = expr parent_func builder l in
@@ -868,70 +992,11 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, arg_func) = expr parent_func builder f in
             let (builder, a') = expr parent_func builder a in
             let (builder, addr) = expr parent_func builder l in
-            let arg_func_typ = L.type_of arg_func in
-            let f_name = "lfold" ^ (str_of_ltyp (L.element_type arg_func_typ)) in
+            let f_name_suf = (str_of_ltyp (L.type_of a')) ^ (str_of_ltyp (L.type_of addr)) in
+            let f_name = "lfold" ^ f_name_suf in
             let func = (match L.lookup_function f_name the_module with
                 Some f -> f
-                | None -> (
-
-                    let accum_typ = L.type_of a' in
-                    let addr_typ = L.type_of addr in
-                    let (func, function_builder) = make_func f_name [(arg_func_typ,"f");(accum_typ,"a");(addr_typ,"l")] accum_typ in
-
-                    let (function_builder, arg_func) = expr func function_builder (SId("f")) in
-                    let (function_builder, a') = expr func function_builder (SId("a")) in
-                    let (function_builder, addr) = expr func function_builder (SId("l")) in
-
-                    let i_addr = L.build_alloca i32_t "iaddr" function_builder in
-                    ignore(L.build_store zero i_addr function_builder);
-                    let accum_addr = L.build_malloc (L.type_of a') "accum" function_builder in
-                    ignore(L.build_store a' accum_addr function_builder);
-
-                    let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listltyp" function_builder in
-                    let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
-                    let head_node = L.build_load addr_head "headnode" function_builder in
-                    let curr_node = L.build_malloc (L.pointer_type ll_node) "currnode" function_builder in
-                    ignore(L.build_store head_node curr_node function_builder);
-
-                    let ltyp_ptr = L.element_type (L.type_of addr_t) in
-                    let len = L.build_call ll_size_func [|head_node|] "len" function_builder in
-
-                    let cond_bb = L.append_block context "cond" func in
-                    let cond_builder = L.builder_at_end context cond_bb in
-                    let i = L.build_load i_addr "i" cond_builder in
-                    let cond = L.build_icmp L.Icmp.Slt i len "lessthan" cond_builder in
-
-                    let body_bb = L.append_block context "foldbody" func in
-                    let body_builder = L.builder_at_end context body_bb in
-
-                    let node = L.build_load curr_node "node" body_builder in
-                    let c_data = L.build_call ll_get_func [|node;zero|] "cdata" body_builder in
-                    let data = L.build_bitcast c_data ltyp_ptr "data" body_builder in
-                    let data_load = L.build_load data "dataload" body_builder in
-
-                    let a = L.build_load accum_addr "accumload" body_builder in
-                    let a = L.build_call arg_func [|a;data_load|] "accumresult" body_builder in
-                    ignore(L.build_store a accum_addr body_builder);
-
-                    let i = L.build_add i one "i" body_builder in
-                    ignore(L.build_store i i_addr body_builder);
-
-                    let next_node = L.build_call ll_next_func [|node|] "nextnode" body_builder in
-                    ignore(L.build_store next_node curr_node body_builder);
-
-                    let merge_bb = L.append_block context "merge" func in
-
-                    ignore(L.build_br cond_bb function_builder);
-                    ignore(L.build_br cond_bb body_builder);
-                    ignore(L.build_cond_br cond body_bb merge_bb cond_builder);
-
-                    let function_builder = L.builder_at_end context merge_bb in
-                    let accum_final = L.build_load accum_addr "accumfinal" function_builder in
-
-                    ignore(L.build_ret accum_final function_builder);
-
-                    func
-                )
+                | None -> make_lfold_func f_name arg_func a' addr
             ) in
             let accum_final = L.build_call func [|arg_func;a';addr|] "accumfinal" builder in
             (builder, accum_final)
@@ -940,71 +1005,58 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, arg_func) = expr parent_func builder f in
             let (builder, a') = expr parent_func builder a in
             let (builder, addr) = expr parent_func builder d in
-            let arg_func_typ = L.type_of arg_func in
-            let accum_typ = L.type_of a' in
-            let f_name = "dfold" ^ (str_of_ltyp (L.element_type arg_func_typ)) in
+            let f_name_suf = (str_of_ltyp (L.type_of a')) ^ (str_of_ltyp (L.type_of addr)) in
+            let f_name = "dfold" ^ f_name_suf in
             let func = (match L.lookup_function f_name the_module with
                 Some f -> f
-                | None -> (
-                    let addr_typ = L.type_of addr in
-                    let (func, function_builder) = make_func f_name [(arg_func_typ,"f");(accum_typ,"a");(addr_typ,"d")] accum_typ in
-
-                    let (function_builder, arg_func) = expr func function_builder (SId("f")) in
-                    let (function_builder, a') = expr func function_builder (SId("a")) in
-                    let (function_builder, addr) = expr func function_builder (SId("d")) in
-
-                    let i_addr = L.build_alloca i32_t "iaddr" function_builder in
-                    ignore(L.build_store zero i_addr function_builder);
-                    let accum_addr = L.build_malloc (L.type_of a') "accum" function_builder in
-                    ignore(L.build_store a' accum_addr function_builder);
-
-                    let dictt1_addr = L.build_in_bounds_gep addr [|zero;zero|] "dictt1addr" function_builder in
-                    let dictt2_addr = L.build_in_bounds_gep addr [|zero;one|] "dictt2addr" function_builder in
-                    let t1_ptr = L.element_type (L.type_of dictt1_addr) in
-                    let t2_ptr = L.element_type (L.type_of dictt2_addr) in
-                    let dictht_addr = L.build_in_bounds_gep addr [|zero;two|] "dicthtaddr" function_builder in
-                    let ht = L.build_load dictht_addr "ht" function_builder in
-                    let keys = L.build_call ht_keys_func [|ht|] "keys" function_builder in
-                    let size = L.build_call ht_size_func [|ht|] "size" function_builder in
-
-                    let cond_bb = L.append_block context "cond" func in
-                    let cond_builder = L.builder_at_end context cond_bb in
-                    let i = L.build_load i_addr "i" cond_builder in
-                    let cond = L.build_icmp L.Icmp.Slt i size "lessthan" cond_builder in
-
-                    let body_bb = L.append_block context "foldbody" func in
-                    let body_builder = L.builder_at_end context body_bb in
-
-                    let curr_key_gep = L.build_in_bounds_gep keys [|i|] "currkeygep" body_builder in
-                    let curr_key_c = L.build_load curr_key_gep "currkeyc" body_builder in
-                    let curr_value_c = L.build_call ht_get_func [|ht;curr_key_c|] "currvalc" body_builder in
-                    let curr_key_addr = L.build_bitcast curr_key_c t1_ptr "currkeyaddr" body_builder in
-                    let curr_value_addr = L.build_bitcast curr_value_c t2_ptr "currvaladdr" body_builder in
-                    let curr_key = L.build_load curr_key_addr "currkey" body_builder in
-                    let curr_value = L.build_load curr_value_addr "currval" body_builder in
-
-                    let a = L.build_load accum_addr "accumload" body_builder in
-                    let a = L.build_call arg_func [|a;curr_key;curr_value|] "accumresult" body_builder in
-                    ignore(L.build_store a accum_addr body_builder);
-
-                    let i = L.build_add i one "i" body_builder in
-                    ignore(L.build_store i i_addr body_builder);
-
-                    let merge_bb = L.append_block context "merge" func in
-
-                    ignore(L.build_br cond_bb function_builder);
-                    ignore(L.build_br cond_bb body_builder);
-                    ignore(L.build_cond_br cond body_bb merge_bb cond_builder);
-
-                    let function_builder = L.builder_at_end context merge_bb in
-                    let accum_final = L.build_load accum_addr "accumfinal" function_builder in
-
-                    ignore(L.build_ret accum_final function_builder);
-
-                    func
-                )
+                | None -> make_dfold_func f_name arg_func a' addr
             ) in
             let accum_final = L.build_call func [|arg_func;a';addr|] "accumfinal" builder in
+            (builder, accum_final)
+
+        | SFunCall((t,SId("lmap")), [(typlist_f,f);(typlist_l,l)]) ->
+            let (builder, arg_func) = expr parent_func builder f in
+            let (builder, addr) = expr parent_func builder l in
+
+            (* initiate empty list *)
+            let typ = match (assc_typ_of_typlist typlist_l) with A.List(t) -> t | _ -> raise (Failure internal_err) in
+            let (builder, new_list_addr) = expr parent_func builder (SListLit(typ,[])) in
+
+            let addr_typ = L.type_of addr in
+            let arg_func_name = L.value_name arg_func in
+            let ltyp = ltyp_of_typ typ in
+
+            let wrapper_f_name = "foldwrapper" ^ arg_func_name in
+            let wrapper_func = (match L.lookup_function wrapper_f_name the_module with
+                Some f -> f
+                | None ->
+                    let (wrapper_func, function_builder) = make_func ("foldwrapper" ^ arg_func_name) [(addr_typ,"a");(ltyp,"e")] addr_typ in
+
+                    let (function_builder, a') = expr wrapper_func function_builder (SId("a")) in
+                    let (function_builder, e') = expr wrapper_func function_builder (SId("e")) in
+
+                    let ladd_f_name = "ladd" ^ str_of_ltyp addr_typ in
+                    let ladd_func = (match L.lookup_function ladd_f_name the_module with
+                        Some f -> f
+                        | None -> make_ladd_func ladd_f_name addr e'
+                    ) in
+
+                    let e' = L.build_call arg_func [|e'|] "e" function_builder in
+                    let addr' = L.build_call ladd_func [|a';e';max_int|] "ladd" function_builder in
+                    ignore(L.build_ret addr' function_builder);
+
+                    wrapper_func
+            ) in
+
+            let f_name_suf = (str_of_ltyp addr_typ) ^ (str_of_ltyp addr_typ) in
+            let f_name = "lfold" ^ f_name_suf in
+
+            let lfold_func = (match L.lookup_function f_name the_module with
+                Some f -> f
+                | None -> make_lfold_func f_name wrapper_func new_list_addr addr
+            ) in
+
+            let accum_final = L.build_call lfold_func [|wrapper_func;new_list_addr;addr|] "accumfinal" builder in
             (builder, accum_final)
 
         | SFunCall((_,SId("rematch")), [(_,r);(_,s)]) ->
@@ -1045,7 +1097,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 )
             in
             (builder, e')
-
 
         | SUTDId(v) ->
             let e' = Hashtbl.find var_tbl v in

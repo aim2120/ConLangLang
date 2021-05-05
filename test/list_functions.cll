@@ -1,51 +1,70 @@
-l = <int>[0,1,2,3,4];
-l2 = <string>['a','b','c'];
+int_list = <int>[0,1,2,3,4];
+string_list = <string>['a','b','c'];
 
-sprint((string)(lget(l,4)));
-sprint((string)(lget(l2,2)));
+sprint((string)(lget(int_list,4)));
+sprint((string)(lget(string_list,2)));
 
-sprint((string)(lsize(l)));
-sprint((string)(lsize(l2)));
+sprint((string)(lsize(int_list)));
+sprint((string)(lsize(string_list)));
 
-sprint((string)(lmem(l,3)));
-sprint((string)(lmem(l,9)));
-sprint((string)(lmem(l2,'b')));
-sprint((string)(lmem(l2,'z')));
+sprint((string)(lmem(int_list,3)));
+sprint((string)(lmem(int_list,9)));
+sprint((string)(lmem(string_list,'b')));
+sprint((string)(lmem(string_list,'z')));
 
-f = <string a,string e:string>{
-    a ^ e ^ '-';
+string_of_list = <string a,string e:string>{
+    a ^ e ^ ' ';
 };
-s = lfold(f,'',l2);
-sprint(s);
 
-f2 = <dict<int,string> d, int e:dict<int,string>>{
+
+add_bang = <string s:string> {
+    s ^ '!';
+};
+
+print_list = <string s:string> {
+    sprint(s);
+    s;
+};
+
+str = lfold(string_of_list,'',string_list);
+sprint(str);
+lmap(print_list, string_list);
+
+string_list_bang = lmap(add_bang,string_list);
+str_bang = lfold(string_of_list,'',string_list_bang);
+sprint(str_bang);
+lmap(print_list, string_list_bang);
+
+make_int_string_dict = <dict<int,string> d, int e:dict<int,string>>{
     dadd(d,e,(string)e);
 };
 
-f2bang = <dict<int,string> d, int e:dict<int,string>>{
+make_int_string_dict_bang = <dict<int,string> d, int e:dict<int,string>>{
     dadd(d,e,((string)e) ^ '!');
 };
 
-d = lfold(f2,<int,string>{},l);
+d = lfold(make_int_string_dict,<int,string>{},int_list);
 
-f3 = <dict<int,string> d, int e:dict<int,string>>{
+print_dict = <dict<int,string> d, int e:dict<int,string>>{
     sprint(dget(d,e));
     d;
 };
-lfold(f3,d,l);
+lfold(print_dict,d,int_list);
 
-lfold(f2bang,d,l);
-lfold(f3,d,l);
+lfold(make_int_string_dict_bang,d,int_list);
+lfold(print_dict,d,int_list);
 
-lremove(l);
-n = lsize(l);
-lremove(l,n);
+lremove(int_list);
+n = lsize(int_list);
+lremove(int_list,n);
 
-lfold(f3,d,l);
+lfold(print_dict,d,int_list);
 
-ladd(l,888);
-n = lsize(l);
-ladd(l,999,n);
+ladd(int_list,888);
+n = lsize(int_list);
+ladd(int_list,999,n);
 
-lfold(f2bang,d,l);
-lfold(f3,d,l);
+lfold(make_int_string_dict_bang,d,int_list);
+lfold(print_dict,d,int_list);
+
+
