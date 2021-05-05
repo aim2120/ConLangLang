@@ -26,19 +26,35 @@ ll_node *ll_create(char *data) {
     return new_node;
 }
 
-ll_node *ll_add(ll_node *head, char *data) {
+ll_node *ll_add(ll_node *head, char *data, int n) {
     ll_node *curr = head;
+    ll_node *prev = NULL;
+    ll_node *new_node;
+
     if (curr == NULL) {
         return NULL;
     }
 
-    while (curr != NULL && curr->next != NULL) {
+    for (int i = 0; i < n && curr != NULL; i++) {
+        prev = curr;
         curr = curr->next;
     }
 
-    ll_node *new_node = ll_create(data);
-    curr->next = new_node;
-    return new_node;
+    new_node = ll_create(data);
+
+    if (new_node == NULL) {
+        return NULL;
+    }
+
+    if (prev != NULL) {
+        prev->next = new_node;
+        new_node->next = curr;
+    } else {
+        new_node->next = head;
+        head = new_node;
+    }
+
+    return head;
 }
 
 /* returns new head node */
@@ -102,6 +118,7 @@ int ll_size(ll_node *head) {
     return i;
 }
 
+/* TODO: implement later if necessary
 ll_node *ll_dup(ll_node *head) {
     ll_node *newhead;
     ll_node *curr = head;
@@ -113,12 +130,13 @@ ll_node *ll_dup(ll_node *head) {
     newhead = ll_create(curr->data);
     curr = curr->next;
     while (curr != NULL) {
-        ll_add(newhead, curr->data);
+        ll_add(newhead, curr->data, );
         curr = curr->next;
     }
 
     return newhead;
 }
+*/
 
 void ll_del(ll_node *head) {
     ll_node *curr = head;

@@ -55,6 +55,8 @@ let check_ast ast =
             ("lprint", [List(String)], Int);
             ("lget", [List(String); (Int)], String);
             ("ladd", [List(String); String], List(String));
+            ("ladd", [List(String); String; Int], List(String));
+            ("lremove", [List(String)], List(String));
             ("lremove", [List(String); Int], List(String));
             ("lsize", [List(String)], Int);
             ("lfold", [Fun([String;String],String);String;List(String)], String);
@@ -72,6 +74,8 @@ let check_ast ast =
             ("lprint", [List(t)], Int);
             ("lget", [List(t); Int], t);
             ("ladd", [List(t); t], List(t));
+            ("ladd", [List(t); t; Int], List(t));
+            ("lremove", [List(t)], List(t));
             ("lremove", [List(t); Int], List(t));
             ("lsize", [List(t)], Int);
         ] in

@@ -78,7 +78,7 @@ hashtable_t *ht_grow( hashtable_t *hashtable ) {
     for (int i = 0; i < hashtable->size; i++) {
         entry_t *pair = hashtable->table[i];
         while ( pair != NULL && pair->key != NULL ) {
-            ht_set(new_hashtable, pair->key, pair->value);
+            ht_add(new_hashtable, pair->key, pair->value);
             pair = pair->next;
         }
     }
@@ -159,7 +159,7 @@ entry_t *ht_newpair( char *key, char *value ) {
 }
 
 /* Insert a key-value pair into a hash table. */
-hashtable_t *ht_set( hashtable_t *hashtable, char *key, char *value ) {
+hashtable_t *ht_add( hashtable_t *hashtable, char *key, char *value ) {
     int bin = 0;
     bool kis = hashtable->key_is_string;
     entry_t *newpair = NULL;
@@ -405,13 +405,13 @@ int main( int argc, char **argv ) {
 
     hashtable_t *hashtable = ht_create( 0 );
 
-    ht_set( hashtable, "key1", "inky" );
+    ht_add( hashtable, "key1", "inky" );
     ht_print(hashtable);
-    ht_set( hashtable, "key2", "pinky" );
+    ht_add( hashtable, "key2", "pinky" );
     ht_print(hashtable);
-    ht_set( hashtable, "key3", "blinky" );
+    ht_add( hashtable, "key3", "blinky" );
     ht_print(hashtable);
-    ht_set( hashtable, "key4", "floyd" );
+    ht_add( hashtable, "key4", "floyd" );
     ht_print(hashtable);
 
     ht_remove( hashtable, "key1" );

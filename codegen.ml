@@ -178,17 +178,15 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ll_remove = "ll_remove" in
     let ll_print  = "ll_print" in
     let ll_size   = "ll_size" in
-    let ll_dup    = "ll_dup" in
     let ll_del    = "ll_del" in
     let ll_defs = [
         (ll_create, (L.pointer_type ll_node), [|string_t|]);
-        (ll_add, (L.pointer_type ll_node), [|L.pointer_type ll_node; string_t|]);
+        (ll_add, (L.pointer_type ll_node), [|L.pointer_type ll_node;string_t;i32_t|]);
         (ll_next, (L.pointer_type ll_node), [|L.pointer_type ll_node|]);
         (ll_get, (string_t), [|L.pointer_type ll_node; i32_t|]);
         (ll_remove, (L.pointer_type ll_node), [|L.pointer_type ll_node;i32_t|]);
         (ll_print, i32_t, [|L.pointer_type ll_node|]);
         (ll_size, i32_t, [|L.pointer_type ll_node|]);
-        (ll_dup, (L.pointer_type ll_node), [|L.pointer_type ll_node|]);
         (ll_del, void_t, [|L.pointer_type ll_node|]);
     ] in
     let ll_funcs = List.fold_left declare_funcs StringMap.empty ll_defs in
@@ -199,7 +197,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let ll_remove_func = StringMap.find ll_remove ll_funcs in
     let ll_print_func = StringMap.find ll_print ll_funcs in
     let ll_size_func = StringMap.find ll_size ll_funcs in
-    let ll_dup_func = StringMap.find ll_dup ll_funcs in
     let ll_del_func = StringMap.find ll_del ll_funcs in
 
     (* hash table functions *)
@@ -309,27 +306,28 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ignore(L.build_store (L.const_null ltyp) null_t builder);
             ignore(L.build_store null_t addr_ltyp builder);
 
-            let l' = List.map (fun e -> snd e) l in
-            let first = List.hd l' in
+            let l' = List.rev (List.map (fun e -> snd e) l) in
+            let last = List.hd l' in
             let the_rest = List.tl l' in
+            let len = List.length l' - 1 in
 
-            let (builder, first') = expr parent_func builder first in
-            let data = make_addr first' ltyp true builder in
-            let c_data = L.build_bitcast data string_t "cdata0" builder in
-            let first_node = L.build_call ll_create_func [|c_data|] "node0" builder in
-            (if L.is_null first_node then raise (Failure "malloc failed") else ());
-            ignore(L.build_store first_node addr_head builder);
+            let (builder, last') = expr parent_func builder last in
+            let data = make_addr last' ltyp true builder in
+            let c_data = L.build_bitcast data string_t ("cdata" ^ string_of_int len) builder in
+            let last_node = L.build_call ll_create_func [|c_data|] ("node" ^ string_of_int len) builder in
+            (if L.is_null last_node then raise (Failure "malloc failed") else ());
 
-            let add_node (builder, last_node, i) e =
+            let add_node (builder, head_node, i) e =
                 let i' = string_of_int i in
                 let (builder, e') = expr parent_func builder e in
                 let data = make_addr e' ltyp true builder in
                 let c_data = L.build_bitcast data string_t ("cdata" ^ i') builder in
-                let addr = L.build_call ll_add_func [|last_node; c_data|] ("node" ^ i') builder in
-                (if L.is_null addr then raise (Failure "malloc failed") else ());
-                (builder, addr, i+1)
+                let head_node = L.build_call ll_add_func [|head_node; c_data; zero|] ("node" ^ i') builder in
+                (if L.is_null head_node then raise (Failure "malloc failed") else ());
+                (builder, head_node, i-1)
             in
-            let (builder, _, _) = List.fold_left add_node (builder, first_node, 1) the_rest in
+            let (builder, head_node, _) = List.fold_left add_node (builder, last_node, len-1) the_rest in
+            ignore(L.build_store head_node addr_head builder);
             (builder, addr)
 
         | SDictLit(t1, t2, d) ->
@@ -460,19 +458,24 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ) in
             (builder, out)
 
-        | SFunCall((_,SId("ladd")), [(_, l); (_,e)]) ->
+        | SFunCall((t1,SId("ladd")), [(t2,l); (t3,e)]) ->
+            expr parent_func builder (SFunCall((t1,SId("ladd")), [(t2,l); (t3,e); ([A.Int],SIntLit(0))]))
+
+        | SFunCall((_,SId("ladd")), [(_,l); (_,e); (_,n)]) ->
             let (builder, addr) = expr parent_func builder l in
             let (builder, e') = expr parent_func builder e in
+            let (builder, n') = expr parent_func builder n in
             let addr_typ = L.type_of addr in
             let f_name = "ladd" ^ (str_of_ltyp addr_typ) in
             let func = (match L.lookup_function f_name the_module with
                 Some f -> f
                 | None -> (
                     let ltyp = L.type_of e' in
-                    let (func, function_builder) = make_func f_name [(addr_typ,"l");(ltyp,"e")] addr_typ in
+                    let (func, function_builder) = make_func f_name [(addr_typ,"l");(ltyp,"e");i32_t,"n"] addr_typ in
 
                     let (function_builder, addr) = expr func function_builder (SId("l")) in
                     let (function_builder, e') = expr func function_builder (SId("e")) in
+                    let (function_builder, n') = expr func function_builder (SId("n")) in
 
                     let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" function_builder in
                     let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
@@ -481,14 +484,14 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let data = make_addr e' ltyp true function_builder in
                     let c_data = L.build_bitcast data string_t "cdata" function_builder in
 
-                    ignore(L.build_call ll_add_func [|head_node;c_data|] "" function_builder);
+                    let head_node' = L.build_call ll_add_func [|head_node;c_data;n'|] "" function_builder in
+                    ignore(L.build_store head_node' addr_head function_builder);
                     ignore(L.build_ret addr function_builder);
 
                     func
                 )
-            )
-            in
-            let addr' = L.build_call func [|addr;e'|] "ladd" builder in
+            ) in
+            let addr' = L.build_call func [|addr;e';n'|] "ladd" builder in
             (builder, addr')
 
         | SFunCall((_,SId("dadd")), [(_, dict); (_,k); (_,v)]) ->
@@ -607,6 +610,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let v_data_load = L.build_call func [|addr;k'|] "dget" builder in
             (builder, v_data_load)
 
+        | SFunCall((t1,SId("lremove")), [(t2, l)]) ->
+            expr parent_func builder (SFunCall((t1,SId("lremove")), [(t2, l); ([A.Int],SIntLit(0))]))
+
         | SFunCall((_,SId("lremove")), [(_, l); (_,n)]) ->
             let (builder, addr) = expr parent_func builder l in
             let (builder, n') = expr parent_func builder n in
@@ -618,7 +624,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let (func, function_builder) = make_func f_name [(addr_typ,"l");(i32_t,"n")] addr_typ in
 
                     let (function_builder, addr) = expr func function_builder (SId("l")) in
-                    let (function_builder, k') = expr func function_builder (SId("n")) in
+                    let (function_builder, n') = expr func function_builder (SId("n")) in
 
                     let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" function_builder in
                     let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
