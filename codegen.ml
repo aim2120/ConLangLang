@@ -1269,9 +1269,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let wrapper_f_name = "foldwrapper" ^ arg_func_name in
             let wrapper_func = (try Hashtbl.find func_tbl wrapper_f_name
                 with Not_found -> (
-                    let (wrapper_func, function_builder) = make_func wrapper_f_name [(addr_typ,"#a");(ltyp1,"#k");(ltyp2,"#v")] addr_typ in
+                    let args = [(addr_typ,"#a");(ltyp1,"#k");(ltyp2,"#v")] in
+                    let (wrapper_func, function_builder) = make_func wrapper_f_name (args @ (get_parent_func_vars parent_func)) addr_typ in
 
                     init_params wrapper_func wrapper_f_name function_builder;
+
+                    let arg_func_params = L.params arg_func in
 
                     let (function_builder, a') = expr wrapper_func function_builder (SId("#a")) in
                     let (function_builder, k') = expr wrapper_func function_builder (SId("#k")) in
@@ -1286,7 +1289,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                         )
                     ) in
 
-                    let v' = L.build_call arg_func [|k';v'|] "e" function_builder in
+                    let actuals = add_parent_func_vars arg_func_params [k';v'] in
+                    let actuals_arr = Array.of_list actuals in
+                    let v' = L.build_call arg_func actuals_arr "v" function_builder in
                     let addr' = L.build_call dadd_func [|a';k';v'|] "ladd" function_builder in
                     ignore(L.build_ret addr' function_builder);
 
@@ -1309,7 +1314,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 )
             ) in
 
-            let accum_final = L.build_call dfold_func [|wrapper_func;new_dict_addr;addr|] "dmapaccumfinal" builder in
+            let actuals = add_parent_func_vars (L.params dfold_func) [wrapper_func;new_dict_addr;addr] in
+            let actuals_arr = Array.of_list actuals in
+            let accum_final = L.build_call dfold_func actuals_arr "dmapaccumfinal" builder in
             (builder, accum_final)
 
         | SFunCall((_,SId("dkeys")), [(typlist,d)]) ->
