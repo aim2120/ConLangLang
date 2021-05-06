@@ -335,7 +335,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         let init_params func f_name builder =
             let init_param i param =
                 let param_name = L.value_name param in
-                let out = Hashtbl.find (Hashtbl.find func_params_tbl f_name) param_name in
+                let out = try Hashtbl.find (Hashtbl.find func_params_tbl f_name) param_name
+                    with Not_found -> raise (Failure ("Param not found: " ^ param_name))
+                in
                 let out_load = L.build_load out "param" builder in
                 Hashtbl.add var_tbl param_name (out_load, func);
             in
@@ -355,13 +357,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         let make_ladd_func (f_name : string) (addr : L.llvalue) (e' : L.llvalue) =
             let addr_typ = L.type_of addr in
             let ltyp = L.type_of e' in
-            let (func, function_builder) = make_func f_name [(addr_typ,"l");(ltyp,"e");i32_t,"n"] addr_typ in
+            let (func, function_builder) = make_func f_name [(addr_typ,"#l");(ltyp,"#e");i32_t,"#n"] addr_typ in
 
             init_params func f_name function_builder;
 
-            let (function_builder, addr) = expr func function_builder (SId("l")) in
-            let (function_builder, e') = expr func function_builder (SId("e")) in
-            let (function_builder, n') = expr func function_builder (SId("n")) in
+            let (function_builder, addr) = expr func function_builder (SId("#l")) in
+            let (function_builder, e') = expr func function_builder (SId("#e")) in
+            let (function_builder, n') = expr func function_builder (SId("#n")) in
 
             let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" function_builder in
             let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
@@ -381,14 +383,14 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let addr_typ = L.type_of addr in
             let k_typ = L.type_of k' in
             let v_typ = L.type_of v' in
-            let (func, function_builder) = make_func f_name [(addr_typ,"d");(k_typ,"k");(v_typ,"v")] addr_typ in
+            let (func, function_builder) = make_func f_name [(addr_typ,"#d");(k_typ,"#k");(v_typ,"#v")] addr_typ in
 
             init_params func f_name function_builder;
             
             (* building dadd function *)
-            let (function_builder, addr) = expr func function_builder (SId("d")) in
-            let (function_builder, k')   = expr func function_builder (SId("k")) in
-            let (function_builder, v')   = expr func function_builder (SId("v")) in
+            let (function_builder, addr) = expr func function_builder (SId("#d")) in
+            let (function_builder, k')   = expr func function_builder (SId("#k")) in
+            let (function_builder, v')   = expr func function_builder (SId("#v")) in
             
             let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" function_builder in
             let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" function_builder in
@@ -412,12 +414,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let addr_typ = L.type_of addr in
             let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" builder in
             let t = L.element_type (L.element_type (L.type_of addr_t)) in
-            let (func, function_builder) = make_func f_name [(addr_typ,"l");(i32_t,"n")] t in
+            let (func, function_builder) = make_func f_name [(addr_typ,"#l");(i32_t,"#n")] t in
 
             init_params func f_name function_builder;
 
-            let (function_builder, addr) = expr func function_builder (SId("l")) in
-            let (function_builder, n') = expr func function_builder (SId("n")) in
+            let (function_builder, addr) = expr func function_builder (SId("#l")) in
+            let (function_builder, n') = expr func function_builder (SId("#n")) in
 
             let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" function_builder in
             let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
@@ -438,16 +440,16 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let accum_typ = L.type_of a' in
             let addr_typ = L.type_of addr in
 
-            let args = [(arg_func_typ,"f");(accum_typ,"a");(addr_typ,"l")] in
+            let args = [(arg_func_typ,"#f");(accum_typ,"#a");(addr_typ,"#l")] in
             let (func, function_builder) = make_func f_name (args @ (get_parent_func_vars parent_func)) accum_typ in
 
             init_params func f_name function_builder;
 
             let arg_func_params = L.params arg_func in
 
-            let (function_builder, arg_func) = expr func function_builder (SId("f")) in
-            let (function_builder, a') = expr func function_builder (SId("a")) in
-            let (function_builder, addr) = expr func function_builder (SId("l")) in
+            let (function_builder, arg_func) = expr func function_builder (SId("#f")) in
+            let (function_builder, a') = expr func function_builder (SId("#a")) in
+            let (function_builder, addr) = expr func function_builder (SId("#l")) in
 
             let i_addr = L.build_alloca i32_t "iaddr" function_builder in
             ignore(L.build_store zero i_addr function_builder);
@@ -511,16 +513,16 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let accum_typ = L.type_of a' in
             let addr_typ = L.type_of addr in
 
-            let args = [(arg_func_typ,"f");(accum_typ,"a");(addr_typ,"d")] in
+            let args = [(arg_func_typ,"#f");(accum_typ,"#a");(addr_typ,"#d")] in
             let (func, function_builder) = make_func f_name (args @ (get_parent_func_vars parent_func)) accum_typ in
 
             init_params func f_name function_builder;
 
             let arg_func_params = L.params arg_func in
 
-            let (function_builder, arg_func) = expr func function_builder (SId("f")) in
-            let (function_builder, a') = expr func function_builder (SId("a")) in
-            let (function_builder, addr) = expr func function_builder (SId("d")) in
+            let (function_builder, arg_func) = expr func function_builder (SId("#f")) in
+            let (function_builder, a') = expr func function_builder (SId("#a")) in
+            let (function_builder, addr) = expr func function_builder (SId("#d")) in
 
             let i_addr = L.build_alloca i32_t "iaddr" function_builder in
             ignore(L.build_store zero i_addr function_builder);
@@ -819,12 +821,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 | None -> (
                     let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" builder in
                     let t = L.element_type (L.element_type (L.type_of addr_t)) in
-                    let (func, function_builder) = make_func f_name [(addr_typ,"l");(t,"e")] i32_t in
+                    let (func, function_builder) = make_func f_name [(addr_typ,"#l");(t,"#e")] i32_t in
 
                     init_params func f_name function_builder;
 
-                    let (function_builder, addr) = expr func function_builder (SId("l")) in
-                    let (function_builder, e') = expr func function_builder (SId("e")) in
+                    let (function_builder, addr) = expr func function_builder (SId("#l")) in
+                    let (function_builder, e') = expr func function_builder (SId("#e")) in
 
                     let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" function_builder in
                     let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
@@ -857,13 +859,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 Some f -> f
                 | None -> (
                     let k_typ = L.type_of k' in
-                    let (func, function_builder) = make_func f_name [(addr_typ,"d");(k_typ,"k")] i1_t in
+                    let (func, function_builder) = make_func f_name [(addr_typ,"#d");(k_typ,"#k")] i1_t in
 
                     init_params func f_name function_builder;
 
                     (* building dmem function *)
-                    let (function_builder, addr) = expr func function_builder (SId("d")) in
-                    let (function_builder, k')   = expr func function_builder (SId("k")) in
+                    let (function_builder, addr) = expr func function_builder (SId("#d")) in
+                    let (function_builder, k')   = expr func function_builder (SId("#k")) in
 
                     let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" function_builder in
                     let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" function_builder in
@@ -907,13 +909,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let k_typ = L.type_of k' in
                     let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" builder in
                     let v_typ = L.element_type (L.element_type (L.type_of addr_t2)) in
-                    let (func, function_builder) = make_func f_name [(addr_typ,"d");(k_typ,"k")] v_typ in
+                    let (func, function_builder) = make_func f_name [(addr_typ,"#d");(k_typ,"#k")] v_typ in
 
                     init_params func f_name function_builder;
 
                     (* building dget function *)
-                    let (function_builder, addr) = expr func function_builder (SId("d")) in
-                    let (function_builder, k')   = expr func function_builder (SId("k")) in
+                    let (function_builder, addr) = expr func function_builder (SId("#d")) in
+                    let (function_builder, k')   = expr func function_builder (SId("#k")) in
 
                     let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" function_builder in
                     let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" function_builder in
@@ -951,12 +953,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let func = (match L.lookup_function f_name the_module with
                 Some f -> f
                 | None -> (
-                    let (func, function_builder) = make_func f_name [(addr_typ,"l");(i32_t,"n")] addr_typ in
+                    let (func, function_builder) = make_func f_name [(addr_typ,"#l");(i32_t,"#n")] addr_typ in
 
                     init_params func f_name function_builder;
 
-                    let (function_builder, addr) = expr func function_builder (SId("l")) in
-                    let (function_builder, n') = expr func function_builder (SId("n")) in
+                    let (function_builder, addr) = expr func function_builder (SId("#l")) in
+                    let (function_builder, n') = expr func function_builder (SId("#n")) in
 
                     let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" function_builder in
                     let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
@@ -981,13 +983,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 Some f -> f
                 | None -> (
                     let k_typ = L.type_of k' in
-                    let (func, function_builder) = make_func f_name [(addr_typ,"d");(k_typ,"k")] addr_typ in
+                    let (func, function_builder) = make_func f_name [(addr_typ,"#d");(k_typ,"#k")] addr_typ in
 
                     init_params func f_name function_builder;
 
                     (* building dremove function *)
-                    let (function_builder, addr) = expr func function_builder (SId("d")) in
-                    let (function_builder, k')   = expr func function_builder (SId("k")) in
+                    let (function_builder, addr) = expr func function_builder (SId("#d")) in
+                    let (function_builder, k')   = expr func function_builder (SId("#k")) in
 
                     let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" function_builder in
                     let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" function_builder in
@@ -1058,13 +1060,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 | None -> (
 
                     let accum_typ = L.type_of a' in
-                    let (func, function_builder) = make_func f_name [(arg_func_typ,"f");(accum_typ,"a");(string_t,"s")] accum_typ in
+                    let (func, function_builder) = make_func f_name [(arg_func_typ,"#f");(accum_typ,"#a");(string_t,"#s")] accum_typ in
 
                     init_params func f_name function_builder;
 
-                    let (function_builder, arg_func) = expr func function_builder (SId("f")) in
-                    let (function_builder, a') = expr func function_builder (SId("a")) in
-                    let (function_builder, addr) = expr func function_builder (SId("s")) in
+                    let (function_builder, arg_func) = expr func function_builder (SId("#f")) in
+                    let (function_builder, a') = expr func function_builder (SId("#a")) in
+                    let (function_builder, addr) = expr func function_builder (SId("#s")) in
 
                     let i_addr = L.build_alloca i32_t "iaddr" function_builder in
                     ignore(L.build_store zero i_addr function_builder);
@@ -1159,12 +1161,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let wrapper_func = (match L.lookup_function wrapper_f_name the_module with
                 Some f -> f
                 | None ->
-                    let (wrapper_func, function_builder) = make_func wrapper_f_name [(addr_typ,"a");(ltyp,"e")] addr_typ in
+                    let (wrapper_func, function_builder) = make_func wrapper_f_name [(addr_typ,"#a");(ltyp,"#e")] addr_typ in
 
                     init_params wrapper_func wrapper_f_name function_builder;
 
-                    let (function_builder, a') = expr wrapper_func function_builder (SId("a")) in
-                    let (function_builder, e') = expr wrapper_func function_builder (SId("e")) in
+                    let (function_builder, a') = expr wrapper_func function_builder (SId("#a")) in
+                    let (function_builder, e') = expr wrapper_func function_builder (SId("#e")) in
 
                     let ladd_f_name = "ladd" ^ str_of_ltyp addr_typ in
                     let ladd_func = (match L.lookup_function ladd_f_name the_module with
@@ -1207,13 +1209,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let wrapper_func = (match L.lookup_function wrapper_f_name the_module with
                 Some f -> f
                 | None ->
-                    let (wrapper_func, function_builder) = make_func wrapper_f_name [(addr_typ,"a");(ltyp1,"k");(ltyp2,"v")] addr_typ in
+                    let (wrapper_func, function_builder) = make_func wrapper_f_name [(addr_typ,"#a");(ltyp1,"#k");(ltyp2,"#v")] addr_typ in
 
                     init_params wrapper_func wrapper_f_name function_builder;
 
-                    let (function_builder, a') = expr wrapper_func function_builder (SId("a")) in
-                    let (function_builder, k') = expr wrapper_func function_builder (SId("k")) in
-                    let (function_builder, v') = expr wrapper_func function_builder (SId("v")) in
+                    let (function_builder, a') = expr wrapper_func function_builder (SId("#a")) in
+                    let (function_builder, k') = expr wrapper_func function_builder (SId("#k")) in
+                    let (function_builder, v') = expr wrapper_func function_builder (SId("#v")) in
 
                     let dadd_f_name = "dadd" ^ str_of_ltyp addr_typ in
                     let dadd_func = (match L.lookup_function dadd_f_name the_module with

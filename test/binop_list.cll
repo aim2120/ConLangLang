@@ -5,4 +5,5 @@ string_of_list = <string a, string e:string> {
     a ^ e ^ ' ';
 };
 
-##s = lfold(string_of_list,'',l2);
+s = lfold(string_of_list,'',l2);
+sprint(s);
