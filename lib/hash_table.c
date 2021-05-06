@@ -187,7 +187,7 @@ hashtable_t *ht_add( hashtable_t *hashtable, char *key, char *value ) {
 
     bool addr_cmp, str_cmp = false;
     while( next != NULL && next->key != NULL ) {
-        addr_cmp = memcmp( key, next->key, 1) == 0;
+        addr_cmp = !kis && memcmp( key, next->key, 1) == 0;
         if (kis) {
             nextkey_ptr = (char **) (next->key);
             nextkey_ = *nextkey_ptr;
@@ -266,7 +266,7 @@ hashtable_t *ht_remove(hashtable_t *hashtable, char *key) {
 
     bool addr_cmp, str_cmp = false;
     while( next != NULL && next->key != NULL ) {
-        addr_cmp = memcmp( key, next->key, 1) == 0;
+        addr_cmp = !kis && memcmp( key, next->key, 1) == 0;
         if (kis) {
             nextkey_ptr = (char **) (next->key);
             nextkey_ = *nextkey_ptr;
@@ -347,7 +347,7 @@ char *ht_get( hashtable_t *hashtable, char *key ) {
             pairkey_ = *pairkey_ptr;
             str_cmp = strcmp( key_, pairkey_ ) == 0;
         }
-        addr_cmp = memcmp( key, pair->key, 1) == 0;
+        addr_cmp = !kis && memcmp( key, pair->key, 1) == 0;
         if (addr_cmp || str_cmp) {
             break;
         }
@@ -381,6 +381,9 @@ char **ht_keys(hashtable_t *hashtable) {
             j++;
         }
     }
+
+    for (int i = 0; i < hashtable->filled; i++) {
+    };
 
     return keys;
 };

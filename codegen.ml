@@ -1292,7 +1292,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let actuals = add_parent_func_vars arg_func_params [k';v'] in
                     let actuals_arr = Array.of_list actuals in
                     let v' = L.build_call arg_func actuals_arr "v" function_builder in
-                    let addr' = L.build_call dadd_func [|a';k';v'|] "ladd" function_builder in
+                    let addr' = L.build_call dadd_func [|a';k';v'|] "dadd" function_builder in
                     ignore(L.build_ret addr' function_builder);
 
                     cleanup_func_vars wrapper_func;
