@@ -1,0 +1,11 @@
+f = <string e:string> {
+    e ^ '!';
+};
+
+l = lmap(f,<string>['a','b','c']);
+
+string_of_list = <string a, string e:string> {
+    a ^ e ^ ' ';
+};
+
+sprint(lfold(string_of_list,'',l));

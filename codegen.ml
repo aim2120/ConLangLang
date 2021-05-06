@@ -145,6 +145,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let var_tbl : (string, (L.llvalue * L.llvalue)) Hashtbl.t = Hashtbl.create 10 in
     (* func name -> locals table *)
     let func_params_tbl : (string, (string, L.llvalue) Hashtbl.t) Hashtbl.t = Hashtbl.create 10 in
+    let func_tbl : (string, L.llvalue) Hashtbl.t = Hashtbl.create 10 in
 
     (* start external functions *)
     let declare_func (name, ret, args) var_arg =
@@ -322,6 +323,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         let add_parent_func_vars params actuals =
             let actuals_len = List.length actuals in
             let get_parent_vars (parent_vars, i) param =
+                (* skip the vars that are part of normal function declaration *)
                 if i < actuals_len then (parent_vars, i+1)
                 else (
                     let (v, _) = Hashtbl.find var_tbl (L.value_name param) in
@@ -376,6 +378,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ignore(L.build_store head_node' addr_head function_builder);
             ignore(L.build_ret addr function_builder);
 
+            cleanup_func_vars func;
+
             func
         in
 
@@ -386,18 +390,18 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (func, function_builder) = make_func f_name [(addr_typ,"#d");(k_typ,"#k");(v_typ,"#v")] addr_typ in
 
             init_params func f_name function_builder;
-            
+
             (* building dadd function *)
             let (function_builder, addr) = expr func function_builder (SId("#d")) in
             let (function_builder, k')   = expr func function_builder (SId("#k")) in
             let (function_builder, v')   = expr func function_builder (SId("#v")) in
-            
+
             let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" function_builder in
             let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" function_builder in
             let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" function_builder in
             let ltyp1 = L.element_type (L.element_type (L.type_of addr_t1)) in
             let ltyp2 = L.element_type (L.element_type (L.type_of addr_t2)) in
-            
+
             let k_data = make_addr k' ltyp1 false function_builder in
             let v_data = make_addr v' ltyp2 false function_builder in
             let c_k_data = L.build_bitcast k_data string_t "ckdata" function_builder in
@@ -407,6 +411,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             (if L.is_null ht' then raise (Failure "malloc failed") else ());
             ignore(L.build_store ht' addr_ht function_builder);
             ignore(L.build_ret addr function_builder);
+
+            cleanup_func_vars func;
+
             func
         in
 
@@ -430,6 +437,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let data = L.build_bitcast c_data (L.type_of ltyp_ptr) "data" function_builder in
             let data_load = L.build_load data "dataload" function_builder in
             ignore(L.build_ret data_load function_builder);
+
+            cleanup_func_vars func;
 
             func
         in
@@ -499,7 +508,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ignore(L.build_cond_br cond body_bb merge_bb cond_builder);
 
             let function_builder = L.builder_at_end context merge_bb in
-            let accum_final = L.build_load accum_addr "accumfinal" function_builder in
+            let accum_final = L.build_load accum_addr "lfoldaccum" function_builder in
 
             ignore(L.build_ret accum_final function_builder);
 
@@ -570,13 +579,11 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ignore(L.build_cond_br cond body_bb merge_bb cond_builder);
 
             let function_builder = L.builder_at_end context merge_bb in
-            let accum_final = L.build_load accum_addr "accumfinal" function_builder in
+            let accum_final = L.build_load accum_addr "dfoldaccum" function_builder in
 
             ignore(L.build_ret accum_final function_builder);
 
             cleanup_func_vars func;
-
-            (* TODO VARIABLE SCOPE HERE *)
 
             func
         in
@@ -791,9 +798,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, e') = expr parent_func builder e in
             let (builder, n') = expr parent_func builder n in
             let f_name = "ladd" ^ (str_of_ltyp (L.type_of addr)) in
-            let func = (match L.lookup_function f_name the_module with
-                Some f -> f
-                | None -> make_ladd_func f_name addr e'
+            let func = (try Hashtbl.find func_tbl f_name
+                with Not_found -> (
+                    let func = make_ladd_func f_name addr e' in
+                    Hashtbl.add func_tbl f_name func;
+                    func
+                )
             ) in
             let addr' = L.build_call func [|addr;e';n'|] "ladd" builder in
             (builder, addr')
@@ -803,11 +813,14 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, k')   = expr parent_func builder k in
             let (builder, v')   = expr parent_func builder v in
             let f_name = "dadd" ^ (str_of_ltyp (L.type_of addr)) in
-            let func = (match L.lookup_function f_name the_module with
-                Some f -> f
-                | None -> make_dadd_func f_name addr k' v'
-            )
-            in
+            let func = (try Hashtbl.find func_tbl f_name
+                with Not_found -> (
+                    let func = make_dadd_func f_name addr k' v' in
+                    Hashtbl.add func_tbl f_name func;
+                    func
+                )
+            ) in
+
             let addr = L.build_call func [|addr;k';v'|] "dadd" builder in
             (builder, addr)
 
@@ -816,9 +829,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, e') = expr parent_func builder e in
             let addr_typ = L.type_of addr in
             let f_name = "lmem" ^ (str_of_ltyp addr_typ) in
-            let func = (match L.lookup_function f_name the_module with
-                Some f -> f
-                | None -> (
+            let func = (try Hashtbl.find func_tbl f_name
+                with Not_found -> (
                     let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" builder in
                     let t = L.element_type (L.element_type (L.type_of addr_t)) in
                     let (func, function_builder) = make_func f_name [(addr_typ,"#l");(t,"#e")] i32_t in
@@ -843,10 +855,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     in
                     ignore(L.build_ret n function_builder);
 
+                    cleanup_func_vars func;
+                    Hashtbl.add func_tbl f_name func;
+
                     func
                 )
-            )
-            in
+            ) in
+
             let n = L.build_call func [|addr;e'|] "lmem" builder in
             (builder, n)
 
@@ -855,9 +870,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, k') = expr parent_func builder k in
             let addr_typ = L.type_of addr in
             let f_name = "dmem" ^ (str_of_ltyp addr_typ) in
-            let func = (match L.lookup_function f_name the_module with
-                Some f -> f
-                | None -> (
+            let func = (try Hashtbl.find func_tbl f_name
+                with Not_found -> (
                     let k_typ = L.type_of k' in
                     let (func, function_builder) = make_func f_name [(addr_typ,"#d");(k_typ,"#k")] i1_t in
 
@@ -877,9 +891,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let is_mem = L.build_call ht_mem_func [|ht;c_k_data|] "dmem" function_builder in
                     ignore(L.build_ret is_mem function_builder);
 
+                    cleanup_func_vars func;
+                    Hashtbl.add func_tbl f_name func;
+
                     func
                 )
             ) in
+
             let is_mem = L.build_call func [|addr;k'|] "dmem" builder in
             (builder, is_mem)
 
@@ -890,11 +908,14 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, n') = expr parent_func builder n in
             let addr_type = L.type_of addr in
             let f_name = "lget" ^ (str_of_ltyp addr_type) in
-            let func = (match L.lookup_function f_name the_module with
-                Some f -> f
-                | None -> make_lget_func f_name addr
-            )
-            in
+            let func = (try Hashtbl.find func_tbl f_name
+                with Not_found -> (
+                    let func = make_lget_func f_name addr in
+                    Hashtbl.add func_tbl f_name func;
+                    func
+                )
+            ) in
+
             let data_load = L.build_call func [|addr;n'|] "lget" builder in
             (builder, data_load)
 
@@ -903,9 +924,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, k') = expr parent_func builder k in
             let addr_typ = L.type_of addr in
             let f_name = "dget" ^ (str_of_ltyp addr_typ) in
-            let func = (match L.lookup_function f_name the_module with
-                Some f -> f
-                | None -> (
+
+            let func = (try Hashtbl.find func_tbl f_name
+                with Not_found -> (
                     let k_typ = L.type_of k' in
                     let addr_t2 = L.build_in_bounds_gep addr [|zero;one|] "dictt2" builder in
                     let v_typ = L.element_type (L.element_type (L.type_of addr_t2)) in
@@ -936,9 +957,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let v_data_load = L.build_load v_data "vdataload" function_builder in
                     ignore(L.build_ret v_data_load function_builder);
 
+                    cleanup_func_vars func;
+                    Hashtbl.add func_tbl f_name func;
+
                     func
                 )
             ) in
+
             let v_data_load = L.build_call func [|addr;k'|] "dget" builder in
             (builder, v_data_load)
 
@@ -950,9 +975,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, n') = expr parent_func builder n in
             let addr_typ = L.type_of addr in
             let f_name = "lremove" ^ (str_of_ltyp addr_typ) in
-            let func = (match L.lookup_function f_name the_module with
-                Some f -> f
-                | None -> (
+
+            let func = (try Hashtbl.find func_tbl f_name
+                with Not_found -> (
                     let (func, function_builder) = make_func f_name [(addr_typ,"#l");(i32_t,"#n")] addr_typ in
 
                     init_params func f_name function_builder;
@@ -967,10 +992,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     ignore(L.build_store head_node' addr_head function_builder);
                     ignore(L.build_ret addr function_builder);
 
+                    cleanup_func_vars func;
+                    Hashtbl.add func_tbl f_name func;
+
                     func
                 )
-            )
-            in
+            ) in
+
             let addr' = L.build_call func [|addr;n'|] "lremove" builder in
             (builder, addr')
 
@@ -979,9 +1007,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, k') = expr parent_func builder k in
             let addr_typ = L.type_of addr in
             let f_name = "dremove" ^ (str_of_ltyp addr_typ) in
-            let func = (match L.lookup_function f_name the_module with
-                Some f -> f
-                | None -> (
+            let func = (try Hashtbl.find func_tbl f_name
+                with Not_found -> (
                     let k_typ = L.type_of k' in
                     let (func, function_builder) = make_func f_name [(addr_typ,"#d");(k_typ,"#k")] addr_typ in
 
@@ -1005,9 +1032,14 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     (if L.is_null ht' then raise (Failure "malloc failed") else ());
                     ignore(L.build_store ht' addr_ht function_builder);
                     ignore(L.build_ret addr function_builder);
+
+                    cleanup_func_vars func;
+                    Hashtbl.add func_tbl f_name func;
+
                     func
                 )
             ) in
+
             let addr = L.build_call func [|addr;k'|] "dremove" builder in
             (builder, addr)
 
@@ -1055,10 +1087,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, addr) = expr parent_func builder s in
             let arg_func_typ = L.type_of arg_func in
             let f_name = "sfold" ^ (str_of_ltyp (L.element_type arg_func_typ)) in
-            let func = (match L.lookup_function f_name the_module with
-                Some f -> f
-                | None -> (
 
+            let func = (try Hashtbl.find func_tbl f_name
+                with Not_found -> (
                     let accum_typ = L.type_of a' in
                     let (func, function_builder) = make_func f_name [(arg_func_typ,"#f");(accum_typ,"#a");(string_t,"#s")] accum_typ in
 
@@ -1101,14 +1132,19 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     ignore(L.build_cond_br cond body_bb merge_bb cond_builder);
 
                     let function_builder = L.builder_at_end context merge_bb in
-                    let accum_final = L.build_load accum_addr "accumfinal" function_builder in
+                    let accum_final = L.build_load accum_addr "sfoldaccum" function_builder in
 
                     ignore(L.build_ret accum_final function_builder);
+
+                    cleanup_func_vars func;
+                    Hashtbl.add func_tbl f_name func;
 
                     func
                 )
             ) in
-            let accum_final = L.build_call func [|arg_func;a';addr|] "accumfinal" builder in
+
+
+            let accum_final = L.build_call func [|arg_func;a';addr|] "sfoldaccumfinal" builder in
             (builder, accum_final)
 
         | SFunCall((_,SId("lfold")), [(_,f);(_,a);(_,l)]) ->
@@ -1116,16 +1152,19 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, a') = expr parent_func builder a in
             let (builder, addr) = expr parent_func builder l in
             let f_name_suf = (str_of_ltyp (L.type_of a')) ^ (str_of_ltyp (L.type_of addr)) in
-            let f_name = "lfold" ^ f_name_suf in
-            let func = (match L.lookup_function f_name the_module with
-                Some f -> f
-                | None -> make_lfold_func f_name arg_func a' addr
+            let f_name = "lfold" ^ f_name_suf ^ (string_of_int (Array.length (L.params arg_func))) in
+
+            let func = (try Hashtbl.find func_tbl f_name
+                with Not_found -> (
+                    let func = make_lfold_func f_name arg_func a' addr in
+                    Hashtbl.add func_tbl f_name func;
+                    func
+                )
             ) in
 
             let actuals = add_parent_func_vars (L.params func) [arg_func;a';addr] in
             let actuals_arr = Array.of_list actuals in
-
-            let accum_final = L.build_call func actuals_arr "accumfinal" builder in
+            let accum_final = L.build_call func actuals_arr "lfoldaccumfinal" builder in
             (builder, accum_final)
 
         | SFunCall((_,SId("dfold")), [(_,f);(_,a);(_,d)]) ->
@@ -1133,16 +1172,21 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, a') = expr parent_func builder a in
             let (builder, addr) = expr parent_func builder d in
             let f_name_suf = (str_of_ltyp (L.type_of a')) ^ (str_of_ltyp (L.type_of addr)) in
-            let f_name = "dfold" ^ f_name_suf in
-            let func = (match L.lookup_function f_name the_module with
-                Some f -> f
-                | None -> make_dfold_func f_name arg_func a' addr
+            let f_name = "dfold" ^ f_name_suf ^ (string_of_int (Array.length (L.params arg_func))) in
+
+            let func = (try Hashtbl.find func_tbl f_name
+                with Not_found -> (
+                    let func = make_dfold_func f_name arg_func a' addr in
+                    Hashtbl.add func_tbl f_name func;
+                    func
+                )
             ) in
+
 
             let actuals = add_parent_func_vars (L.params func) [arg_func;a';addr] in
             let actuals_arr = Array.of_list actuals in
 
-            let accum_final = L.build_call func actuals_arr "accumfinal" builder in
+            let accum_final = L.build_call func actuals_arr "dfoldaccumfinal" builder in
             (builder, accum_final)
 
         | SFunCall((t,SId("lmap")), [(typlist_f,f);(typlist_l,l)]) ->
@@ -1158,38 +1202,55 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let ltyp = ltyp_of_typ typ in
 
             let wrapper_f_name = "foldwrapper" ^ arg_func_name in
-            let wrapper_func = (match L.lookup_function wrapper_f_name the_module with
-                Some f -> f
-                | None ->
-                    let (wrapper_func, function_builder) = make_func wrapper_f_name [(addr_typ,"#a");(ltyp,"#e")] addr_typ in
+
+            let wrapper_func = (try Hashtbl.find func_tbl wrapper_f_name
+                with Not_found -> (
+                    let args = [(addr_typ,"#a");(ltyp,"#e")] in
+                    let (wrapper_func, function_builder) = make_func wrapper_f_name (args @ (get_parent_func_vars parent_func)) addr_typ in
 
                     init_params wrapper_func wrapper_f_name function_builder;
+
+                    let arg_func_params = L.params arg_func in
 
                     let (function_builder, a') = expr wrapper_func function_builder (SId("#a")) in
                     let (function_builder, e') = expr wrapper_func function_builder (SId("#e")) in
 
                     let ladd_f_name = "ladd" ^ str_of_ltyp addr_typ in
-                    let ladd_func = (match L.lookup_function ladd_f_name the_module with
-                        Some f -> f
-                        | None -> make_ladd_func ladd_f_name addr e'
+                    let ladd_func = (try Hashtbl.find func_tbl ladd_f_name
+                        with Not_found -> (
+                            let ladd_func = make_ladd_func ladd_f_name addr e' in
+                            Hashtbl.add func_tbl ladd_f_name ladd_func;
+                            ladd_func
+                        )
                     ) in
 
-                    let e' = L.build_call arg_func [|e'|] "e" function_builder in
+                    let actuals = add_parent_func_vars arg_func_params [e'] in
+                    let actuals_arr = Array.of_list actuals in
+                    let e' = L.build_call arg_func actuals_arr "e" function_builder in
                     let addr' = L.build_call ladd_func [|a';e';max_int|] "ladd" function_builder in
                     ignore(L.build_ret addr' function_builder);
 
+                    cleanup_func_vars wrapper_func;
+                    Hashtbl.add func_tbl wrapper_f_name wrapper_func;
+
                     wrapper_func
+                )
             ) in
 
             let f_name_suf = (str_of_ltyp addr_typ) ^ (str_of_ltyp addr_typ) in
-            let f_name = "lfold" ^ f_name_suf in
+            let f_name = "lfold" ^ f_name_suf ^ (string_of_int (Array.length (L.params wrapper_func))) in
 
-            let lfold_func = (match L.lookup_function f_name the_module with
-                Some f -> f
-                | None -> make_lfold_func f_name wrapper_func new_list_addr addr
+            let lfold_func = (try Hashtbl.find func_tbl f_name
+                with Not_found -> (
+                    let lfold_func = make_lfold_func f_name wrapper_func new_list_addr addr in
+                    Hashtbl.add func_tbl f_name lfold_func;
+                    lfold_func
+                )
             ) in
 
-            let accum_final = L.build_call lfold_func [|wrapper_func;new_list_addr;addr|] "accumfinal" builder in
+            let actuals = add_parent_func_vars (L.params lfold_func) [wrapper_func;new_list_addr;addr] in
+            let actuals_arr = Array.of_list actuals in
+            let accum_final = L.build_call lfold_func actuals_arr "lmapaccumfinal" builder in
             (builder, accum_final)
 
         | SFunCall((t,SId("dmap")), [(typlist_f,f);(typlist_d,d)]) ->
@@ -1206,9 +1267,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let ltyp2 = ltyp_of_typ t2 in
 
             let wrapper_f_name = "foldwrapper" ^ arg_func_name in
-            let wrapper_func = (match L.lookup_function wrapper_f_name the_module with
-                Some f -> f
-                | None ->
+            let wrapper_func = (try Hashtbl.find func_tbl wrapper_f_name
+                with Not_found -> (
                     let (wrapper_func, function_builder) = make_func wrapper_f_name [(addr_typ,"#a");(ltyp1,"#k");(ltyp2,"#v")] addr_typ in
 
                     init_params wrapper_func wrapper_f_name function_builder;
@@ -1218,27 +1278,38 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let (function_builder, v') = expr wrapper_func function_builder (SId("#v")) in
 
                     let dadd_f_name = "dadd" ^ str_of_ltyp addr_typ in
-                    let dadd_func = (match L.lookup_function dadd_f_name the_module with
-                        Some f -> f
-                        | None -> make_dadd_func dadd_f_name addr k' v'
+                    let dadd_func = (try Hashtbl.find func_tbl dadd_f_name
+                        with Not_found -> (
+                            let dadd_func = make_dadd_func dadd_f_name addr k' v' in
+                            Hashtbl.add func_tbl dadd_f_name dadd_func;
+                            dadd_func
+                        )
                     ) in
 
                     let v' = L.build_call arg_func [|k';v'|] "e" function_builder in
                     let addr' = L.build_call dadd_func [|a';k';v'|] "ladd" function_builder in
                     ignore(L.build_ret addr' function_builder);
 
+                    cleanup_func_vars wrapper_func;
+                    Hashtbl.add func_tbl wrapper_f_name wrapper_func;
+
                     wrapper_func
+                )
             ) in
+
 
             let f_name_suf = (str_of_ltyp addr_typ) ^ (str_of_ltyp addr_typ) in
-            let f_name = "dfold" ^ f_name_suf in
+            let f_name = "dfold" ^ f_name_suf ^ (string_of_int (Array.length (L.params wrapper_func))) in
 
-            let dfold_func = (match L.lookup_function f_name the_module with
-                Some f -> f
-                | None -> make_dfold_func f_name wrapper_func new_dict_addr addr
+            let dfold_func = (try Hashtbl.find func_tbl f_name
+                with Not_found -> (
+                    let dfold_func = make_dfold_func f_name wrapper_func new_dict_addr addr in
+                    Hashtbl.add func_tbl f_name dfold_func;
+                    dfold_func
+                )
             ) in
 
-            let accum_final = L.build_call dfold_func [|wrapper_func;new_dict_addr;addr|] "accumfinal" builder in
+            let accum_final = L.build_call dfold_func [|wrapper_func;new_dict_addr;addr|] "dmapaccumfinal" builder in
             (builder, accum_final)
 
         | SFunCall((_,SId("dkeys")), [(typlist,d)]) ->
