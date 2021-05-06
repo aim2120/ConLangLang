@@ -1,7 +1,10 @@
 mystr = 'hello';
 myotherstr = 'world';
 
-<:int> {
+sprint(mystr);
+sprint(myotherstr);
+
+myfunc = <:int> {
     sprint(mystr);
     sprint(myotherstr);
 
@@ -22,16 +25,18 @@ myotherstr = 'world';
         sprint(mystr);
         sprint(myotherstr);
     };
-    sprint('SHOULD BE HW');
     myinnerfunc();
-    sprint('SHOULD BE GB');
     myotherinnerfunc();
 
     0;
-}();
+};
 
-sprint(mystr);
-sprint(myotherstr);
+myfunc();
+
+mystr = 'different hello';
+myotherstr = 'different world';
+
+myfunc();
 
 bang = '!';
 
@@ -44,6 +49,7 @@ string_list = <string>['cat','dog','bird'];
 s = lfold(add_bang, '', string_list);
 sprint(s);
 
+
 add_dict_bang = <string a, string k, string v:string> {
     a ^ k ^ v ^ bang;
 };
@@ -52,4 +58,3 @@ strstr_dict = <string,string>{'a':'A', 'b':'B', 'c':'C'};
 
 s = dfold(add_dict_bang, '', strstr_dict);
 sprint(s);
-

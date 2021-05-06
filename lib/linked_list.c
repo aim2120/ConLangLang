@@ -59,6 +59,22 @@ ll_node *ll_add(ll_node *head, char *data, int n) {
     return head;
 }
 
+ll_node *ll_append(ll_node *head, ll_node *to_append) {
+    ll_node *curr = head;
+
+    if (curr == NULL) {
+        return to_append;
+    }
+
+    while (curr->next != NULL) {
+        curr = curr->next;
+    }
+
+    curr->next = to_append;
+
+    return head;
+};
+
 int ll_mem(ll_node *head, char *data, bool is_string) {
     ll_node *curr = head;
     char *data_;

@@ -1,5 +1,8 @@
 int_list = <int>[0,1,2,3,4];
 string_list = <string>['a','b','c'];
+string_list2 = <string>['d','e','f'];
+
+string_list = string_list ^ string_list2;
 
 sprint((string)(lget(int_list,4)));
 sprint((string)(lget(string_list,2)));

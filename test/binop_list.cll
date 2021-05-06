@@ -1,0 +1,8 @@
+l = <string>['a','b','c'];
+l2 = l ^ <string>['d','e','f'];
+
+string_of_list = <string a, string e:string> {
+    a ^ e ^ ' ';
+};
+
+##s = lfold(string_of_list,'',l2);
