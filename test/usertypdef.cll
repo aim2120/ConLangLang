@@ -1,5 +1,13 @@
-typedef $X = { int i; string s; dict<int,int> d; };
-$X x = { i = 5; s = 'hello'; d = <int,int>{}; };
+typedef $X = {
+    int i;
+    string s;
+    dict<int,int> d;
+};
+$X x = {
+    i = 5;
+    s = 'hello';
+    d = <int,int>{};
+};
 dofx = x.d;
 dadd(dofx, 0, 0);
 

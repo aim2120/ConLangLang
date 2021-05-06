@@ -396,7 +396,13 @@ let check_ast ast =
             let (typlist, se, vsym) = check_expr env e in
             let vsym' = add_var vsym (id, typlist) in
             (typlist, SAssign(id, (typlist, se)), vsym')
-        | TypDefAssign(ut,id,l) ->
+        | TypDefAssign(td,id,l) ->
+            let rec get_ut = (function
+                UserTyp(u) -> get_ut (to_assc_typ env.tsym (UserTyp(u)))
+                | UserTypDef(ut) -> ut
+                | _ -> make_err "typedef assignment using non-typedef typ"
+            ) in
+            let ut = get_ut td in
             let td_children = find_in_map env.tdsym ut ("typedef " ^ ut ^ " not defined") in
             let check_assignment (vsym, l) (id, e) = 
                 let (typlist, se, vsym') = check_expr (add_env_vsym env vsym) e in
@@ -411,7 +417,7 @@ let check_ast ast =
             in
             let (vsym, sl) = List.fold_left check_assignment (env.vsym, []) l in
             let vsym' = add_var vsym (id, [UserTypDef(ut)]) in
-            ([UserTypDef(ut)], STypDefAssign(ut, id, List.rev sl), vsym')
+            ([UserTypDef(ut)], STypDefAssign(td, id, List.rev sl), vsym')
         | Id(id) ->
             let typlist = find_in_map env.vsym id (id ^ " not defined") in
             (typlist, SId(id), env.vsym)

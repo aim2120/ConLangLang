@@ -27,7 +27,7 @@ type expr =
   | Cast of typ list * expr
   | ChildAcc of expr * string
   | Assign of string * expr
-  | TypDefAssign of string * string * (string * expr) list
+  | TypDefAssign of typ * string * (string * expr) list
   | Id of string
   | FunCall of expr * expr list
   | Match of mtch
@@ -118,7 +118,7 @@ let rec string_of_expr = function
   | ChildAcc(e, s) -> string_of_expr e ^ "." ^ s
   | Cast(t, e) -> "(" ^ String.concat ", " (List.map string_of_typ t) ^ ")" ^ string_of_expr e
   | Assign(v, e) -> v ^ " = " ^ string_of_expr e
-  | TypDefAssign(t, v, l) -> t ^ " " ^ v ^ " = {" ^ String.concat "" (List.map (fun p -> fst p ^ " = " ^ string_of_expr (snd p) ^ ";") l) ^ "}"
+  | TypDefAssign(t, v, l) -> string_of_typ t ^ " " ^ v ^ " = {" ^ String.concat "" (List.map (fun p -> fst p ^ " = " ^ string_of_expr (snd p) ^ ";") l) ^ "}"
   | FunCall(e, l) -> string_of_expr e ^ "(" ^ String.concat ", " (List.map string_of_expr l) ^ ")"
   | Match(m) -> "match:" ^ string_of_typ m.mtyp ^ " (" ^ string_of_expr m.minput ^ ")" ^ string_of_matchlist m.matchlist
   | IfElse(i) -> "if:" ^ string_of_typ i.ityp ^ " (" ^ string_of_expr i.icond ^ ") {" ^

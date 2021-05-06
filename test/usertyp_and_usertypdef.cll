@@ -1,0 +1,45 @@
+type pronoun = { First<string>, Second<string>, Third<string>, Singular<string>, Plural<string>, Fem<string>, Masc<string> };
+typedef $PronounDef = {
+    list<First> fst;
+    Second snd;
+    list<Third> thrd;
+};
+type pronouncase = { Personal<$PronounDef>, Accusative<$PronounDef> };
+
+Personal personal = {
+    fst = <First>[(First,Singular) 'mi', (First,Plural) 'ni'];
+    snd = (Second,Singular,Plural) 'vi';
+    thrd = <Third>[(Third,Singular,Fem) 'si', (Third,Singular) 'gi', (Third,Plural) 'ili'];
+};
+
+testsuf = 'n';
+suf = 5;
+
+addsufFirst = <First p:First>{
+    x = 'a';
+    p ^ (string)suf;
+};
+
+addsufThird = <Third p:Third>{
+    p ^ (string)suf;
+};
+
+Accusative accusative = {
+    fst = lmap(addsufFirst,personal.fst);
+    snd = personal.snd ^ (string)suf;
+    thrd = lmap(addsufThird,personal.thrd);
+};
+
+printFirst = <First p:First>{
+    sprint((string)p);
+    p;
+};
+printThird = <Third p:Third>{
+    sprint((string)p);
+    p;
+};
+
+lmap(printFirst,accusative.fst);
+lmap(printThird,accusative.thrd);
+
+printFirst((First)'hello');

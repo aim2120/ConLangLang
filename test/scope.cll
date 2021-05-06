@@ -1,0 +1,55 @@
+mystr = 'hello';
+myotherstr = 'world';
+
+<:int> {
+    sprint(mystr);
+    sprint(myotherstr);
+
+    myinnerfunc = <:int> {
+        sprint(mystr);
+        sprint(myotherstr);
+    };
+
+    myinnerfunc();
+
+    mystr = 'good';
+    myotherstr = 'bye';
+
+    sprint(mystr);
+    sprint(myotherstr);
+
+    myotherinnerfunc = <:int> {
+        sprint(mystr);
+        sprint(myotherstr);
+    };
+    sprint('SHOULD BE HW');
+    myinnerfunc();
+    sprint('SHOULD BE GB');
+    myotherinnerfunc();
+
+    0;
+}();
+
+sprint(mystr);
+sprint(myotherstr);
+
+bang = '!';
+
+add_bang = <string a, string s:string> {
+    a ^ s ^ bang ^ ' ';
+};
+
+string_list = <string>['cat','dog','bird'];
+
+s = lfold(add_bang, '', string_list);
+sprint(s);
+
+add_dict_bang = <string a, string k, string v:string> {
+    a ^ k ^ v ^ bang;
+};
+
+strstr_dict = <string,string>{'a':'A', 'b':'B', 'c':'C'};
+
+s = dfold(add_dict_bang, '', strstr_dict);
+sprint(s);
+

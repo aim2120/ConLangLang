@@ -141,10 +141,10 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let main = L.define_function "main" main_t the_module in
     let builder = L.builder_at_end context (L.entry_block main) in
 
-    (* variable name -> value table *)
-    let var_tbl : (string, L.llvalue) Hashtbl.t = Hashtbl.create 10 in
+    (* variable name -> (value, parent_function) table *)
+    let var_tbl : (string, (L.llvalue * L.llvalue)) Hashtbl.t = Hashtbl.create 10 in
     (* func name -> locals table *)
-    let func_locals_tbl : (string, (string, L.llvalue) Hashtbl.t) Hashtbl.t = Hashtbl.create 10 in
+    let func_params_tbl : (string, (string, L.llvalue) Hashtbl.t) Hashtbl.t = Hashtbl.create 10 in
 
     (* start external functions *)
     let declare_func (name, ret, args) var_arg =
@@ -174,6 +174,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let str_format = L.build_global_stringptr "%s\n" "fmt" builder in
     let i32_format = L.build_global_stringptr "%d" "fmt" builder in
     let float_format = L.build_global_stringptr "%f" "fmt" builder in
+
+    (*
+     * USE THIS TO DEBUG
+    let (_, s') = expr parent_func builder (SStrLit(s)) in
+    ignore(L.build_call printf_func [|debug_str_format;s'|] "printf" builder);
+    *)
 
     (* start stdlib functions *)
     (* linked list functions *)
@@ -285,8 +291,69 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 Hashtbl.add func_locals n addr;
             in
             List.iter2 make_param params formals_typs_and_names;
-            Hashtbl.add func_locals_tbl f_name func_locals;
+            Hashtbl.add func_params_tbl f_name func_locals;
             (func, function_builder)
+        in
+
+        let get_parent_func_vars parent_func =
+            let last : string ref = ref "" in
+            let get_parent_vars k (v, v_parent_func) a =
+                if k = !last then a
+                else (
+                    (match L.classify_value v with
+                        L.ValueKind.Instruction(_) ->
+                            let t = L.type_of v in
+                            if v_parent_func = parent_func then (
+                                last := k;
+                                (t,k)::a
+                            )
+                            else a
+                        | _ -> a
+                    )
+                )
+            in
+            let parent_vars = Hashtbl.fold get_parent_vars var_tbl [] in
+            parent_vars
+        in
+
+        let add_parent_func_vars params actuals =
+            let actuals_len = List.length actuals in
+            let get_parent_vars (parent_vars, i) param =
+                if i < actuals_len then (parent_vars, i+1)
+                else (
+                    let (v, _) = Hashtbl.find var_tbl (L.value_name param) in
+                    (v::parent_vars, i+1)
+                )
+            in
+            let (parent_vars, _) = Array.fold_left get_parent_vars ([], 0) params in
+            actuals @ (List.rev parent_vars)
+        in
+
+        let init_params func f_name n builder =
+        (* n = params that are already initiated *)
+            let init_param i param =
+                if i < n then ()
+                else (
+                    let param_name = L.value_name param in
+                    let (_, e) = expr func builder (SId(param_name)) in
+
+                    Hashtbl.add (Hashtbl.find func_params_tbl f_name) param_name e;
+                    (*
+                    Hashtbl.add var_tbl param_name (e, func);
+                    *)
+                )
+            in
+            Array.iteri init_param (L.params func);
+        in
+
+        let cleanup_func_vars func =
+            let find_funlit_vars k (v, v_parent_func) to_remove =
+                if v_parent_func = func then
+                    k::to_remove
+                else to_remove
+            in
+            let to_remove = Hashtbl.fold find_funlit_vars var_tbl [] in
+            List.iter (fun k -> Hashtbl.remove var_tbl k) to_remove;
         in
 
         let make_ladd_func (f_name : string) (addr : L.llvalue) (e' : L.llvalue) =
@@ -368,11 +435,17 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let arg_func_typ = L.type_of arg_func in
             let accum_typ = L.type_of a' in
             let addr_typ = L.type_of addr in
-            let (func, function_builder) = make_func f_name [(arg_func_typ,"f");(accum_typ,"a");(addr_typ,"l")] accum_typ in
+
+            let args = [(arg_func_typ,"f");(accum_typ,"a");(addr_typ,"l")] in
+            let (func, function_builder) = make_func f_name (args @ (get_parent_func_vars parent_func)) accum_typ in
+
+            let arg_func_params = L.params arg_func in
 
             let (function_builder, arg_func) = expr func function_builder (SId("f")) in
             let (function_builder, a') = expr func function_builder (SId("a")) in
             let (function_builder, addr) = expr func function_builder (SId("l")) in
+
+            init_params func f_name 3 function_builder;
 
             let i_addr = L.build_alloca i32_t "iaddr" function_builder in
             ignore(L.build_store zero i_addr function_builder);
@@ -402,7 +475,11 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let data_load = L.build_load data "dataload" body_builder in
 
             let a' = L.build_load accum_addr "accumload" body_builder in
-            let a' = L.build_call arg_func [|a';data_load|] "accumresult" body_builder in
+
+            let actuals = add_parent_func_vars arg_func_params [a';data_load] in
+            let actuals_arr = Array.of_list actuals in
+            let a' = L.build_call arg_func actuals_arr "accumresult" body_builder in
+
             ignore(L.build_store a' accum_addr body_builder);
 
             let i = L.build_add i one "i" body_builder in
@@ -422,6 +499,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
             ignore(L.build_ret accum_final function_builder);
 
+            cleanup_func_vars func;
+
             func
         in
 
@@ -429,11 +508,17 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let arg_func_typ = L.type_of arg_func in
             let accum_typ = L.type_of a' in
             let addr_typ = L.type_of addr in
-            let (func, function_builder) = make_func f_name [(arg_func_typ,"f");(accum_typ,"a");(addr_typ,"d")] accum_typ in
+
+            let args = [(arg_func_typ,"f");(accum_typ,"a");(addr_typ,"d")] in
+            let (func, function_builder) = make_func f_name (args @ (get_parent_func_vars parent_func)) accum_typ in
+
+            let arg_func_params = L.params arg_func in
 
             let (function_builder, arg_func) = expr func function_builder (SId("f")) in
             let (function_builder, a') = expr func function_builder (SId("a")) in
             let (function_builder, addr) = expr func function_builder (SId("d")) in
+
+            init_params func f_name 3 function_builder;
 
             let i_addr = L.build_alloca i32_t "iaddr" function_builder in
             ignore(L.build_store zero i_addr function_builder);
@@ -466,7 +551,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let curr_value = L.build_load curr_value_addr "currval" body_builder in
 
             let a' = L.build_load accum_addr "accumload" body_builder in
-            let a' = L.build_call arg_func [|a';curr_key;curr_value|] "accumresult" body_builder in
+            let actuals = add_parent_func_vars arg_func_params [a';curr_key;curr_value] in
+            let actuals_arr = Array.of_list actuals in
+            let a' = L.build_call arg_func actuals_arr "accumresult" body_builder in
             ignore(L.build_store a' accum_addr body_builder);
 
             let i = L.build_add i one "i" body_builder in
@@ -482,6 +569,10 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let accum_final = L.build_load accum_addr "accumfinal" function_builder in
 
             ignore(L.build_ret accum_final function_builder);
+
+            cleanup_func_vars func;
+
+            (* TODO VARIABLE SCOPE HERE *)
 
             func
         in
@@ -1004,7 +1095,11 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 Some f -> f
                 | None -> make_lfold_func f_name arg_func a' addr
             ) in
-            let accum_final = L.build_call func [|arg_func;a';addr|] "accumfinal" builder in
+
+            let actuals = add_parent_func_vars (L.params func) [arg_func;a';addr] in
+            let actuals_arr = Array.of_list actuals in
+
+            let accum_final = L.build_call func actuals_arr "accumfinal" builder in
             (builder, accum_final)
 
         | SFunCall((_,SId("dfold")), [(_,f);(_,a);(_,d)]) ->
@@ -1017,7 +1112,11 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 Some f -> f
                 | None -> make_dfold_func f_name arg_func a' addr
             ) in
-            let accum_final = L.build_call func [|arg_func;a';addr|] "accumfinal" builder in
+
+            let actuals = add_parent_func_vars (L.params func) [arg_func;a';addr] in
+            let actuals_arr = Array.of_list actuals in
+
+            let accum_final = L.build_call func actuals_arr "accumfinal" builder in
             (builder, accum_final)
 
         | SFunCall((t,SId("lmap")), [(typlist_f,f);(typlist_l,l)]) ->
@@ -1143,23 +1242,37 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
         | SAssign(v, (_,e)) ->
             let (builder, e') = expr parent_func builder e in
-            Hashtbl.add var_tbl v e';
+            L.set_value_name v e';
+            (*
+            (match (L.lookup_global v the_module) with
+                Some g -> L.delete_global g
+                | None -> ()
+            );
+            let addr = L.define_global v e' the_module in
+            Hashtbl.add var_tbl v addr;
+            *)
+            Hashtbl.add var_tbl v (e', parent_func);
             (builder, e')
 
-        | SId(v) ->
-            let func = L.value_name parent_func in
+        | SId(id) ->
+            let f_name = L.value_name parent_func in
             let e' = try
-                    let locals = Hashtbl.find func_locals_tbl func in
-                    let out = Hashtbl.find locals v in
-                    L.build_load out "local" builder
+                    let (e', e_parent_func) = Hashtbl.find var_tbl id in
+                    if e_parent_func = parent_func then
+                        e'
+                    else raise Not_found
                 with Not_found -> (
                     try
-                        Hashtbl.find var_tbl v
+                        let params = Hashtbl.find func_params_tbl f_name in
+                        let out = Hashtbl.find params id in
+                        let out_load = L.build_load out "param" builder in
+                        Hashtbl.add var_tbl id (out_load, parent_func);
+                        out_load
                     with Not_found -> (
-                        match L.lookup_function v the_module with
+                        match L.lookup_function id the_module with
                             Some f -> f
                             | None -> (
-                                raise (Failure ("ID not found: " ^ v))
+                                raise (Failure ("ID not found: " ^ id))
                             )
                     )
                 )
@@ -1257,9 +1370,19 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             fun_name_i := !fun_name_i + 1;
             let formals_typs_and_names = List.map (fun (t,n) -> (ltyp_of_typ t, n)) f.sformals in
             let ret_typ = ltyp_of_typ f.sftyp in
+
+            let (func, function_builder) = make_func f_name (formals_typs_and_names @ (get_parent_func_vars parent_func)) ret_typ in
+
+            init_params func f_name (List.length formals_typs_and_names) function_builder;
+
+            (*
             let (func, function_builder) = make_func f_name formals_typs_and_names ret_typ in
+            *)
             let (_, function_builder, function_out) = List.fold_left stmt (func, function_builder, zero) f.sfblock in
             ignore(L.build_ret function_out function_builder);
+
+            cleanup_func_vars func;
+
             (builder, func)
 
         | SFunCall((typlist,e), l) ->
@@ -1269,7 +1392,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             in
             let (builder, actuals) = List.fold_left make_actuals (builder, []) l in
             let (builder, func) = expr parent_func builder e in
-            let actuals_arr = Array.of_list (List.rev actuals) in
+
+            let actuals = add_parent_func_vars (L.params func) (List.rev actuals) in
+            let actuals_arr = Array.of_list (actuals) in
             let out = L.build_call func actuals_arr "funcall" builder in
             (builder, out)
 
@@ -1311,8 +1436,10 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             (builder, e_cast)
 
         | STypDefAssign(t, v, l) ->
-            let (utd_typ, name_pos) = Hashtbl.find utd_typs t in
-            let name = match L.struct_name utd_typ with Some n -> n | None -> raise (Failure internal_err) in
+            let t' = assc_typ_of_typlist [t] in
+            let ut = match t' with A.UserTypDef(ut) -> ut | _ -> raise (Failure (internal_err)) in
+            let (utd_typ, name_pos) = Hashtbl.find utd_typs ut in
+            let name = match L.struct_name utd_typ with Some n -> n | None -> raise (Failure (internal_err)) in
             let addr = L.build_alloca utd_typ (name ^ v) builder in
             let fill_struct builder (n, (_,e)) =
                 let (builder, e') = expr parent_func builder e in
@@ -1323,7 +1450,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 builder
             in
             let builder = List.fold_left fill_struct builder l in
-            Hashtbl.add var_tbl v addr;
+            Hashtbl.add var_tbl v (addr, parent_func);
             (builder, addr)
 
         | SChildAcc((_,e), s) ->

@@ -79,7 +79,7 @@ expr:
     | LPAREN typlist RPAREN expr { Cast(List.rev $2, $4) }
     | expr DOT ID { ChildAcc($1, $3) }
     | ID ASSIGN expr { Assign($1, $3) }
-    | UTD ID ASSIGN LCURLY initlist RCURLY { TypDefAssign($1, $2, $5) }
+    | typ ID ASSIGN LCURLY initlist RCURLY { TypDefAssign($1, $2, (List.rev $5)) }
     | ID { Id($1) }
     | expr LPAREN exprlist_opt RPAREN { FunCall($1, $3) }
     | MATCH COLON typ LPAREN expr RPAREN matchlist { Match({minput=$5; mtyp=$3; matchlist=$7;}) }

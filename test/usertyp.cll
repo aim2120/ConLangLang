@@ -1,4 +1,14 @@
 type t = { Foo<string>, Bar<int> };
 a = (Foo) 'hello';
 b = (Bar) 5;
-sprint((string)a ^ (string)b);
+
+print_foo = <Foo f:int> {
+    sprint((string)f);
+};
+
+print_bar = <Bar b:int> {
+    sprint((string) b);
+};
+
+print_foo(a);
+print_bar(b);

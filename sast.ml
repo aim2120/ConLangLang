@@ -18,7 +18,7 @@ and sx =
   | SCast of typ list * sexpr
   | SChildAcc of sexpr * string
   | SAssign of string * sexpr
-  | STypDefAssign of string * string * (string * sexpr) list
+  | STypDefAssign of typ * string * (string * sexpr) list
   | SId of string
   | SFunCall of sexpr * sexpr list
   | SMatch of smtch
@@ -75,7 +75,7 @@ let rec string_of_sexpr sexpr =
   | SChildAcc(e, s) -> string_of_sexpr e ^ "." ^ s
   | SCast(t, e) -> "(" ^ String.concat ", " (List.map string_of_typ t) ^ ")" ^ string_of_sexpr e
   | SAssign(v, e) -> v ^ " = " ^ string_of_sexpr e
-  | STypDefAssign(t, v, l) -> t ^ " " ^ v ^ " = {" ^ String.concat "" (List.map (fun p -> fst p ^ " = " ^ string_of_sexpr (snd p) ^ ";") l) ^ "}"
+  | STypDefAssign(t, v, l) -> string_of_typ t ^ " " ^ v ^ " = {" ^ String.concat "" (List.map (fun p -> fst p ^ " = " ^ string_of_sexpr (snd p) ^ ";") l) ^ "}"
   | SFunCall(e, l) -> string_of_sexpr e ^ "(" ^ String.concat ", " (List.map string_of_sexpr l) ^ ")"
   | SMatch(m) -> "match:" ^ string_of_typ m.smtyp ^ " (" ^ string_of_sexpr m.sminput ^ ")" ^ string_of_smatchlist m.smatchlist
   | SIfElse(i) -> "if:" ^ string_of_typ i.sityp ^ " (" ^ string_of_sexpr i.sicond ^ ") {\n" ^
