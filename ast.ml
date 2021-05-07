@@ -22,6 +22,7 @@ type expr =
   | ListLit of typ * expr list
   | DictLit of typ * typ * (expr * expr) list
   | FunLit of funlit
+  | TypComp of expr * typ
   | Binop of expr * binop * expr
   | Unop of uop * expr
   | Cast of typ list * expr
@@ -112,6 +113,7 @@ let rec string_of_expr = function
       String.concat "," (List.map (fun p -> string_of_expr (fst p) ^ ":" ^ string_of_expr (snd p)) d) ^ "}"
   | FunLit(f) -> "<" ^ String.concat ", " (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) f.formals) ^ ":" ^
     string_of_typ f.ftyp ^ ">{" ^ string_of_stmtblock f.fblock ^ "}"
+  | TypComp(e,t) -> string_of_expr e ^ "~=" ^ string_of_typ t
   | Binop(e1, o, e2) ->
       string_of_expr e1 ^ " " ^ string_of_binop o ^ " " ^ string_of_expr e2
   | Unop(o, e) -> string_of_uop o ^ string_of_expr e

@@ -6,7 +6,7 @@ open Ast
 
 %token LPAREN RPAREN LCURLY RCURLY LSQUARE RSQUARE LANGLE RANGLE COLON SEMI COMMA
 %token DOT MINUS TIMES DIVIDE MOD PLUS CONCAT
-%token NOT AND OR EQ LT GT ASSIGN
+%token NOT AND OR TYPEQ EQ LT GT ASSIGN
 %token INT BOOL FLOAT STRING REGEX LIST DICT FUN
 %token TYP TYPDEF
 %token MATCH BYVAL BYTYP DEFAULT WHILE IF ELSE
@@ -22,6 +22,7 @@ open Ast
 %right ASSIGN
 %left OR
 %left AND
+%left TYPEQ
 %left EQ
 %right LPAREN
 %left LANGLE RANGLE
@@ -63,6 +64,7 @@ expr:
     | LANGLE typ RANGLE LSQUARE exprlist_opt RSQUARE { ListLit($2, $5) }
     | LANGLE typ COMMA typ RANGLE LCURLY exprpairlist_opt RCURLY { DictLit($2, $4, $7) }
     | LANGLE formallist_opt COLON typ RANGLE LCURLY stmtblock RCURLY { FunLit({formals=$2; ftyp=$4; fblock=(List.rev $7);}) }
+    | expr TYPEQ typ { TypComp($1, $3) }
     | expr AND expr { Binop($1, And, $3) }
     | expr OR expr { Binop($1, Or, $3) }
     | expr EQ expr { Binop($1, Equal, $3) }
@@ -86,12 +88,6 @@ expr:
     | IF COLON typ LPAREN expr RPAREN LCURLY stmtblock RCURLY ELSE LCURLY stmtblock RCURLY { IfElse({icond=$5; ityp=$3; ifblock=(List.rev $8); elseblock=(List.rev $12);}) }
     | WHILE COLON typ LPAREN expr RPAREN LCURLY stmtblock RCURLY { While({wcond=$5; wtyp=$3; wblock=(List.rev $8);}) }
     | LPAREN expr RPAREN { Expr($2) }
-
-/*
-
-    | FUN LANGLE typ RANGLE ID LPAREN formallist_opt RPAREN ASSIGN LCURLY stmtblock RCURLY
-      { Func({id=$5; formals=$7; typ=$3; block=(List.rev $11) }) }
-*/
 
 typlist_opt:
     /* nothing */ { [] }

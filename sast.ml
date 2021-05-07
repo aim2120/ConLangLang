@@ -13,6 +13,7 @@ and sx =
   | SListLit of typ * sexpr list
   | SDictLit of typ * typ * (sexpr * sexpr) list
   | SFunLit of sfunlit
+  | STypComp of sexpr * typ
   | SBinop of sexpr * binop * sexpr
   | SUnop of uop * sexpr
   | SCast of typ list * sexpr
@@ -70,6 +71,7 @@ let rec string_of_sexpr sexpr =
       String.concat "," (List.map (fun p -> string_of_sexpr (fst p) ^ ":" ^ string_of_sexpr (snd p)) d) ^ "}"
   | SFunLit(f) -> "<" ^ String.concat ", " (List.map (fun p -> string_of_typ (fst p) ^ " " ^ snd p) f.sformals) ^ ":" ^
     string_of_typ f.sftyp ^ ">{\n" ^ string_of_sstmtblock f.sfblock ^ "}"
+  | STypComp(e,t) -> string_of_sexpr e ^ "~=" ^ string_of_typ t
   | SBinop(e1, o, e2) -> string_of_sexpr e1 ^ " " ^ string_of_binop o ^ " " ^ string_of_sexpr e2
   | SUnop(o, e) -> string_of_uop o ^ string_of_sexpr e
   | SChildAcc(e, s) -> string_of_sexpr e ^ "." ^ s

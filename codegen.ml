@@ -31,7 +31,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let dict_typs : (string, L.lltype) Hashtbl.t = Hashtbl.create 10 in
     let ut_typs   : (string, L.lltype) Hashtbl.t = Hashtbl.create 10 in
     let utd_typs = Hashtbl.create 10 in
-    let fun_name_i :int ref = ref 0 in
+    let fun_name_i : int ref = ref 0 in
+    let ut_i : int ref = ref 0 in
 
     (* Get types from the context *)
     let i32_t         = L.i32_type    context
@@ -706,6 +707,79 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             in
             let (builder, _) = List.fold_left add_pair (builder, 0) d' in
             (builder, addr)
+
+        | STypComp((typlist,_), t) ->
+            let out_addr = L.build_alloca i1_t "typcompout" builder in
+            ignore(L.build_store fals out_addr builder);
+
+            let merge_bb = L.append_block context "merge" parent_func in
+
+            let true_bb = L.append_block context "typcomptrue" parent_func in
+            let true_builder = L.builder_at_end context true_bb in
+            ignore(L.build_store tru out_addr true_builder);
+            ignore(L.build_br merge_bb true_builder);
+
+            let rhs_name = match t with A.UserTyp(n) -> n | _ -> raise (Failure internal_err) in
+            let rhs_val = match (L.lookup_global rhs_name the_module) with Some g -> g | None -> raise (Failure internal_err) in
+            let make_typ_comp (blocks, i) typ = (
+                match typ with
+                    A.UserTyp(lhs_name) -> (
+                        let i' = string_of_int i in
+                        let lhs_val = match (L.lookup_global lhs_name the_module) with Some g -> g | None -> raise (Failure internal_err) in
+                        let cond_bb = L.append_block context ("typcomp" ^ i') parent_func in
+                        let cond_builder = L.builder_at_end context cond_bb in
+                        let comp_result = L.build_icmp L.Icmp.Eq rhs_val lhs_val ("typcompresult" ^ i') cond_builder in
+                        ignore(L.build_cond_br comp_result true_bb (List.hd blocks) cond_builder);
+                        (cond_bb::blocks, i+1)
+                    )
+                    (* do nothing if not a usertyp *)
+                    | _ -> (blocks, i)
+                )
+            in
+            let (blocks, _) = List.fold_left make_typ_comp ([merge_bb], 0) typlist in
+
+            ignore(L.build_br (List.hd blocks) builder);
+
+            let builder = L.builder_at_end context merge_bb in
+            let out_load = L.build_load out_addr "typcompout" builder in
+            (builder, out_load)
+(*
+ *            let make_cond_block (blocks, i) (sexpr_or_def, _) then_block =
+                let cond_bb = L.append_block context ("cond" ^ string_of_int i) parent_func in
+                let cond_builder = L.builder_at_end context cond_bb in
+                ignore(match sexpr_or_def with
+                    SExprMatch e ->
+                        let (cond_builder, cond) = expr parent_func cond_builder (SBinop(e, A.Equal, m.sminput)) in
+                        ignore(L.build_cond_br cond then_block (List.hd blocks) cond_builder);
+
+                    | SDefaultExpr ->
+                        ignore(L.build_br then_block cond_builder);
+                );
+                (cond_bb::blocks, i - 1)
+            in
+
+
+        | SWhile(w) ->
+            let ltyp = ltyp_of_typ w.swtyp in
+            let out_addr = L.build_alloca ltyp "out" builder in
+            (* null value if while doesn't run *)
+            ignore(L.build_store (L.const_null ltyp) out_addr builder);
+
+            let cond_bb = L.append_block context "while" parent_func in
+            ignore(L.build_br cond_bb builder);
+            let (cond_builder, cond) = expr parent_func (L.builder_at_end context cond_bb) (snd w.swcond) in
+
+            let body_bb = L.append_block context "while_body" parent_func in
+            let (_, body_builder, body_out) = List.fold_left stmt (parent_func, L.builder_at_end context body_bb, zero) w.swblock in
+            ignore(L.build_store body_out out_addr body_builder);
+            ignore(L.build_br cond_bb body_builder);
+
+            let merge_bb = L.append_block context "merge" parent_func in
+            ignore(L.build_cond_br cond body_bb merge_bb cond_builder);
+            let builder = L.builder_at_end context merge_bb in
+            let out = L.build_load out_addr "whileout" builder in
+            (builder, out)
+*)
 
         | SBinop((typlist,e1), o, (_,e2)) ->
             let t = assc_typ_of_typlist typlist in
@@ -1570,6 +1644,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         | STypDecl(v, l) ->
             let make_typ (n, t) =
                 Hashtbl.add ut_typs n (ltyp_of_typ t);
+                ignore(L.define_global n (L.const_int i32_t !ut_i) the_module);
+                ut_i := !ut_i + 1;
             in
             List.iter make_typ l;
             (func, builder, out)

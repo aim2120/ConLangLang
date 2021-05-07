@@ -1,0 +1,19 @@
+type t = { Foo<string>, Bar<int> };
+
+x = (Bar) 0;
+result = (x ~= Bar);
+sprint((string)result);
+
+this = "this";
+
+foo = (Foo, string) 'this should print';
+not_foo = 'should not print';
+
+if:int (foo ~= Foo) {
+    sprint(foo);
+} else { 0; };
+
+if:int (not_foo ~= Foo) {
+    sprint(not_foo);
+} else { 0; };
+

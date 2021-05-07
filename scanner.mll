@@ -37,6 +37,7 @@ rule token = parse
 | "!"      { NOT }
 | "&&"     { AND }
 | "||"     { OR }
+| "~="     { TYPEQ }
 | "=="     { EQ }
 | '='      { ASSIGN }
 | "int"    { INT }

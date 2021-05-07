@@ -340,6 +340,17 @@ let check_ast ast =
             )
             in
             ([Fun(formal_typs, ret_typ)], SFunLit(f'), vsym)
+        | TypComp(e,t) ->
+            let err = "type comparison must be of usertype" in
+            let check_for_usertyp t =
+                (match t with
+                    UserTyp(_) -> ()
+                    | _ -> make_err err)
+            in
+            check_for_usertyp t;
+            let (typlist, e', vsym) = check_expr env e in
+            let vsym' = check_valid_typ (add_env_vsym env vsym) t in
+            ([Bool], STypComp((typlist, e'), t), vsym')
         | Binop(e1,o,e2) ->
             let (typlist1, se1, vsym) = check_expr env e1 in
             let (typlist2, se2, vsym') = check_expr (add_env_vsym env vsym) e2 in
