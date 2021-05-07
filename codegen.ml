@@ -743,43 +743,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let builder = L.builder_at_end context merge_bb in
             let out_load = L.build_load out_addr "typcompout" builder in
             (builder, out_load)
-(*
- *            let make_cond_block (blocks, i) (sexpr_or_def, _) then_block =
-                let cond_bb = L.append_block context ("cond" ^ string_of_int i) parent_func in
-                let cond_builder = L.builder_at_end context cond_bb in
-                ignore(match sexpr_or_def with
-                    SExprMatch e ->
-                        let (cond_builder, cond) = expr parent_func cond_builder (SBinop(e, A.Equal, m.sminput)) in
-                        ignore(L.build_cond_br cond then_block (List.hd blocks) cond_builder);
-
-                    | SDefaultExpr ->
-                        ignore(L.build_br then_block cond_builder);
-                );
-                (cond_bb::blocks, i - 1)
-            in
-
-
-        | SWhile(w) ->
-            let ltyp = ltyp_of_typ w.swtyp in
-            let out_addr = L.build_alloca ltyp "out" builder in
-            (* null value if while doesn't run *)
-            ignore(L.build_store (L.const_null ltyp) out_addr builder);
-
-            let cond_bb = L.append_block context "while" parent_func in
-            ignore(L.build_br cond_bb builder);
-            let (cond_builder, cond) = expr parent_func (L.builder_at_end context cond_bb) (snd w.swcond) in
-
-            let body_bb = L.append_block context "while_body" parent_func in
-            let (_, body_builder, body_out) = List.fold_left stmt (parent_func, L.builder_at_end context body_bb, zero) w.swblock in
-            ignore(L.build_store body_out out_addr body_builder);
-            ignore(L.build_br cond_bb body_builder);
-
-            let merge_bb = L.append_block context "merge" parent_func in
-            ignore(L.build_cond_br cond body_bb merge_bb cond_builder);
-            let builder = L.builder_at_end context merge_bb in
-            let out = L.build_load out_addr "whileout" builder in
-            (builder, out)
-*)
 
         | SBinop((typlist,e1), o, (_,e2)) ->
             let t = assc_typ_of_typlist typlist in
@@ -1467,7 +1430,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 (bb::blocks, i + 1)
             in
 
-            let make_cond_block (blocks, i) (sexpr_or_def, _) then_block =
+            let make_expr_cond_block (blocks, i) (sexpr_or_def, _) then_block =
                 let cond_bb = L.append_block context ("cond" ^ string_of_int i) parent_func in
                 let cond_builder = L.builder_at_end context cond_bb in
                 ignore(match sexpr_or_def with
@@ -1481,15 +1444,34 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 (cond_bb::blocks, i - 1)
             in
 
+            (* TODO LEFT OFF HERE *)
+            let make_typ_cond_block (blocks, i) (typ_or_def, _) then_block =
+                let cond_bb = L.append_block context ("cond" ^ string_of_int i) parent_func in
+                let cond_builder = L.builder_at_end context cond_bb in
+                ignore(match typ_or_def with
+                    A.TypMatch t ->
+                        let (cond_builder, cond) = expr parent_func cond_builder (STypComp(m.sminput, t)) in
+                        ignore(L.build_cond_br cond then_block (List.hd blocks) cond_builder);
+
+                    | A.DefaultTyp ->
+                        ignore(L.build_br then_block cond_builder);
+                );
+                (cond_bb::blocks, i - 1)
+            in
+
             let cond_blocks = (match m.smatchlist with
                 SValMatchList(l)->
                     let (blocks, _) = List.fold_left make_block ([], 0) l in
                     (* blocks is in reverse order *)
-                    let (cond_blocks, _) = List.fold_left2 make_cond_block ([], (List.length blocks - 1)) (List.rev l) blocks
+                    let (cond_blocks, _) = List.fold_left2 make_expr_cond_block ([], (List.length blocks - 1)) (List.rev l) blocks
                     in
                     cond_blocks
 
-                | STypMatchList(l) -> raise (Failure ("typmatch" ^ not_impl))
+                | STypMatchList(l) ->
+                    let (blocks, _) = List.fold_left make_block ([], 0) l in
+                    let (cond_blocks, _) = List.fold_left2 make_typ_cond_block ([], (List.length blocks - 1)) (List.rev l) blocks
+                    in
+                    cond_blocks
                 (* TODO: implement typmatch *)
             ) in
 
