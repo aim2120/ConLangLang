@@ -50,29 +50,21 @@ s = lfold(add_bang, '', string_list);
 sprint(s);
 
 
-add_dict_bang = <string a, string k, string v:string> {
+dict_k_v_bang = <string a, string k, string v:string> {
     a ^ k ^ v ^ bang;
 };
 
 strstr_dict = <string,string>{'a':'A', 'b':'B', 'c':'C'};
 
-s = dfold(add_dict_bang, '', strstr_dict);
+s = dfold(dict_k_v_bang, '', strstr_dict);
 sprint(s);
 
-add_bang = <string e:string>{
-    e ^ bang ^ bang;
+dict_add_bang = <string k, string v:string> {
+    v ^ bang;
 };
 
-string_list_bang = lmap(add_bang, string_list);
-
-s = lfold(<string a, string e:string>{ a ^ e ^ ' '; }, '', string_list_bang);
-sprint(s);
-
-add_dict_bang = <string k, string v:string> {
-    v ^ bang ^ bang;
-};
-
-strstr_dict_bang = dmap(add_dict_bang, strstr_dict);
+strstr_dict_bang = dmap(dict_add_bang, strstr_dict);
 
 s = dfold(<string a, string k, string v:string>{ a ^ k ^ ':' ^ v ^ ' '; }, '', strstr_dict_bang);
 sprint(s);
+

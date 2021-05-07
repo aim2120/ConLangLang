@@ -12,21 +12,20 @@ Personal personal = {
     thrd = <Third>[(Third,Singular,Fem) 'si', (Third,Singular) 'gi', (Third,Plural) 'ili'];
 };
 
-testsuf = 'n';
-suf = 5;
+suf = 'n';
 
 addsufFirst = <First p:First>{
     x = 'a';
-    p ^ (string)suf;
+    p ^ suf;
 };
 
 addsufThird = <Third p:Third>{
-    p ^ (string)suf;
+    p ^ suf;
 };
 
 Accusative accusative = {
     fst = lmap(addsufFirst,personal.fst);
-    snd = personal.snd ^ (string)suf;
+    snd = personal.snd ^ suf;
     thrd = lmap(addsufThird,personal.thrd);
 };
 

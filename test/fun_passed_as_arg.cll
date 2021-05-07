@@ -1,8 +1,0 @@
-f = <string s:int>{
-    sprint(s);
-};
-f2 = < fun<string:int> a : int >{
-    a('hello');
-    0;
-};
-f2(f);
