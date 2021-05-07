@@ -305,8 +305,12 @@ let check_ast ast =
             let vsym' = add_built_in_dict vsym' t1 t2 in
             ([Dict(t1,t2)], SDictLit(t1, t2, List.rev slist), vsym')
         | FunLit(f) ->
+            (match f.ftyp with Fun(_,_) -> make_err "cannot return function from function"
+                | _ -> ());
             let vsym = check_valid_typ env f.ftyp in
             let check_formal vsym (t, id) =
+                (match t with Fun(_,_) -> make_err "cannot pass function as argument"
+                    | _ -> ());
                 let vsym = check_valid_typ (add_env_vsym env vsym) t in
                 add_var vsym (id, [t])
             in
@@ -394,6 +398,10 @@ let check_ast ast =
             ([child_t], SChildAcc((typlist, se), id), vsym)
         | Assign(id,e) ->
             let (typlist, se, vsym) = check_expr env e in
+            let old_typlist = (try (find_in_map vsym id "") with Failure(_) -> [Int]) in
+            (match (to_assc_typ env.tsym (List.hd old_typlist)) with
+                Fun(_,_) -> make_err ("cannot redefine function variable " ^ id)
+                | _ -> ());
             let vsym' = add_var vsym (id, typlist) in
             (typlist, SAssign(id, (typlist, se)), vsym')
         | TypDefAssign(td,id,l) ->
