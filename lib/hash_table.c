@@ -54,7 +54,6 @@ hashtable_t *ht_create( int size, bool key_is_string ) {
         return NULL;
     }
 
-    printf("adding from dict create ht\n");
     add_malloc_addr((char *)hashtable);
 
     /* Allocate pointers to the head nodes. */
@@ -62,7 +61,6 @@ hashtable_t *ht_create( int size, bool key_is_string ) {
         return NULL;
     }
 
-    printf("adding from dict create ht->table\n");
     add_malloc_addr((char *)hashtable->table);
 
 
@@ -132,20 +130,17 @@ entry_t *ht_newpair( char *key, char *value ) {
     if( ( newpair = malloc( sizeof( entry_t ) ) ) == NULL ) {
         return NULL;
     }
-    printf("adding from dict newpair\n");
     add_malloc_addr((char *)newpair);
 
     if( ( newpair->key = malloc( sizeof( char * ) ) ) == NULL ) {
         return NULL;
     }
-    printf("adding from dict newpair->key\n");
     add_malloc_addr((char *)newpair->key);
     memcpy( newpair->key, key, sizeof ( char * ) );
 
     if( ( newpair->value = malloc( sizeof( char * ) ) ) == NULL ) {
         return NULL;
     }
-    printf("adding from dict newpair->value\n");
     add_malloc_addr((char *)newpair->value);
     memcpy( newpair->value, value, sizeof ( char * ) );
 
@@ -355,7 +350,6 @@ char **ht_keys(hashtable_t *hashtable) {
     if ((keys = malloc((sizeof (char**)) * hashtable->filled)) == NULL) {
         return NULL;
     }
-    printf("adding from dict key\n");
     add_malloc_addr((char *)keys);
 
     int j = 0;

@@ -20,7 +20,6 @@ void init_malloc_addr() {
 }
 
 void add_malloc_addr(char *addr) {
-    printf("adding %lu\n", (unsigned long) addr);
     malloc_addr[addr_i] = addr;
     addr_i++;
 
@@ -40,7 +39,6 @@ void free_malloc_addrs() {
         if (malloc_addr[i] == NULL) {
             break;
         }
-        printf("freeing %lu\n", (unsigned long) malloc_addr[i]);
         free(malloc_addr[i]);
     }
 }

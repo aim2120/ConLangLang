@@ -19,13 +19,11 @@ ll_node *ll_create(char *data) {
     if ((new_node = malloc(sizeof (ll_node))) == NULL) {
         return NULL;
     }
-    printf("adding from ll create node\n");
     add_malloc_addr((char *)new_node);
 
     if ((new_node->data = malloc(sizeof (char *))) == NULL) {
         return NULL;
     }
-    printf("adding from ll create node->data\n");
     add_malloc_addr((char *)new_node->data);
 
     memcpy(new_node->data, data, sizeof (char *));
