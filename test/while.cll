@@ -1,5 +1,5 @@
 d = <int,int>{ 0:0 };
-dowhile:int (dget(d, 0) << 5) {
+dowhile:int (dget(d, 0) < 5) {
     x = dget(d, 0);
     dadd(d, 0, x+1);
     sprint('hello');
@@ -7,7 +7,7 @@ dowhile:int (dget(d, 0) << 5) {
 };
 
 x = 20;
-s = dowhile:string (x << 10) {
+s = dowhile:string (x < 10) {
     s = 'hello' ^ ((string)x);
     sprint(s);
     s;
