@@ -147,6 +147,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     (* func name -> locals table *)
     let func_params_tbl : (string, (string, L.llvalue) Hashtbl.t) Hashtbl.t = Hashtbl.create 10 in
     let func_tbl : (string, L.llvalue) Hashtbl.t = Hashtbl.create 10 in
+    let malloc_addr : (string, L.llvalue list) Hashtbl.t = Hashtbl.create 10 in
 
     (* start external functions *)
     let declare_func (name, ret, args) var_arg =
@@ -160,6 +161,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         let (name, _, _) = def in
         StringMap.add name (declare_func def false) map
     in
+
+    let exit_func : L.llvalue = declare_func ("exit", void_t, [|i32_t|]) false in
 
     (* string stuff *)
     let printf_func   : L.llvalue = declare_func ("printf", i32_t, [|string_t|]) true in
@@ -273,12 +276,37 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 | _ -> t)
         in
 
-        let make_addr (e : L.llvalue) (t : L.lltype) (malloc : bool) (builder : L.llbuilder) =
-            let addr = if malloc then L.build_malloc t "" builder else L.build_alloca t "" builder
+        let make_safe_malloc malloc_call (t : L.lltype) (builder : L.llbuilder) (func : L.llvalue) =
+            let exit_bb = L.append_block context "endprog" func in
+            let exit_builder = L.builder_at_end context exit_bb in
+            ignore(L.build_call exit_func [|one|] "" exit_builder);
+            ignore(L.build_unreachable exit_builder);
+
+            let cont_bb = L.append_block context "contprog" func in
+
+            let addr = malloc_call builder in
+            let cond = L.build_icmp L.Icmp.Eq addr (L.const_null (L.pointer_type (t))) "mallocnull" builder in
+            ignore(L.build_cond_br cond exit_bb cont_bb builder);
+
+            let f_name = L.value_name func in
+            let malloced_in_func = (match Hashtbl.find_opt malloc_addr f_name with
+                Some l -> l
+                | None -> [])
+            in
+            Hashtbl.replace malloc_addr f_name (addr::malloced_in_func);
+
+            let builder = L.builder_at_end context cont_bb in
+            (builder, addr)
+        in
+
+        let make_addr (e : L.llvalue) (t : L.lltype) (malloc : bool) (builder : L.llbuilder) (func : L.llvalue) =
+            let (builder, addr) = if malloc then (
+                make_safe_malloc (L.build_malloc t "") t builder func
+            ) else (builder, (L.build_alloca t "" builder))
             in
             (if L.is_null addr then raise (Failure "malloc failed") else ());
             ignore(L.build_store e addr builder);
-            addr
+            (builder, addr)
         in
 
         let make_func f_name formals ret_typ =
@@ -375,7 +403,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
             let head_node = L.build_load addr_head "headnode" function_builder in
 
-            let data = make_addr e' ltyp true function_builder in
+            let (function_builder, data) = make_addr e' ltyp true function_builder func in
             let c_data = L.build_bitcast data string_t "cdata" function_builder in
 
             let head_node' = L.build_call ll_add_func [|head_node;c_data;n'|] "" function_builder in
@@ -406,8 +434,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let ltyp1 = L.element_type (L.element_type (L.type_of addr_t1)) in
             let ltyp2 = L.element_type (L.element_type (L.type_of addr_t2)) in
 
-            let k_data = make_addr k' ltyp1 false function_builder in
-            let v_data = make_addr v' ltyp2 false function_builder in
+            let (function_builder, k_data) = make_addr k' ltyp1 false function_builder func in
+            let (function_builder, v_data) = make_addr v' ltyp2 false function_builder func in
             let c_k_data = L.build_bitcast k_data string_t "ckdata" function_builder in
             let c_v_data = L.build_bitcast v_data string_t "cvdata" function_builder in
             let ht = L.build_load addr_ht "ht" function_builder in
@@ -466,13 +494,15 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
             let i_addr = L.build_alloca i32_t "iaddr" function_builder in
             ignore(L.build_store zero i_addr function_builder);
-            let accum_addr = L.build_malloc (L.type_of a') "accum" function_builder in
+            let accum_t = L.type_of a' in
+            let (function_builder, accum_addr) = make_safe_malloc (L.build_malloc accum_t "accum") accum_t function_builder func in
             ignore(L.build_store a' accum_addr function_builder);
 
             let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listltyp" function_builder in
             let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
             let head_node = L.build_load addr_head "headnode" function_builder in
-            let curr_node = L.build_malloc (L.pointer_type ll_node) "currnode" function_builder in
+            let curr_node_t = L.pointer_type ll_node in
+            let (function_builder, curr_node) = make_safe_malloc (L.build_malloc curr_node_t "currnode") curr_node_t function_builder func in
             ignore(L.build_store head_node curr_node function_builder);
 
             let ltyp_ptr = L.element_type (L.type_of addr_t) in
@@ -606,7 +636,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         | SStrLit(s) ->
             let prefix = "s" in
             let len = String.length s + 1 in
-            let addr = L.build_array_malloc i8_t (L.const_int i32_t len) "string" builder in
+            let (builder, addr) = make_safe_malloc (L.build_array_malloc i8_t (L.const_int i32_t len) "string") i8_t builder parent_func in
             (if L.is_null addr then raise (Failure "malloc failed") else ());
             let store_char i c =
                 let i' = string_of_int i in
@@ -697,8 +727,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 let i' = string_of_int i in
                 let (builder, k') = expr parent_func builder k in
                 let (builder, v') = expr parent_func builder v in
-                let k_data = make_addr k' ltyp1 true builder in
-                let v_data = make_addr v' ltyp2 true builder in
+                let (builder, k_data) = make_addr k' ltyp1 true builder parent_func in
+                let (builder, v_data) = make_addr v' ltyp2 true builder parent_func in
                 let c_k_data = L.build_bitcast k_data string_t ("ckdata" ^ i') builder in
                 let c_v_data = L.build_bitcast v_data string_t ("cvdata" ^ i') builder in
                 let ht = L.build_call ht_add_func [|ht;c_k_data;c_v_data|] "" builder in
@@ -886,7 +916,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let ltyp_ptr = L.build_load addr_t "t*" function_builder in
                     let head_node = L.build_load addr_head "headnode" function_builder in
 
-                    let data = make_addr e' t false function_builder in
+                    let (function_builder, data) = make_addr e' t false function_builder func in
                     let c_data = L.build_bitcast data string_t "cdata" function_builder in
 
                     let n = if t = string_t then
@@ -927,7 +957,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let ht = L.build_load addr_ht "ht" function_builder in
                     let ltyp1 = L.element_type (L.element_type (L.type_of addr_t1)) in
 
-                    let k_data = make_addr k' ltyp1 false function_builder in
+                    let (function_builder, k_data) = make_addr k' ltyp1 false function_builder func in
                     let c_k_data = L.build_bitcast k_data string_t "ckdata" function_builder in
                     let is_mem = L.build_call ht_mem_func [|ht;c_k_data|] "dmem" function_builder in
                     ignore(L.build_ret is_mem function_builder);
@@ -986,7 +1016,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let ltyp2_ptr = L.build_load addr_t2 "t2*" function_builder in
                     let ltyp1 = L.type_of (L.build_load ltyp1_ptr "t1" function_builder) in
                     let ltyp2 = L.type_of (L.build_load ltyp2_ptr "t2" function_builder) in
-                    let k_data = make_addr k' ltyp1 false function_builder in
+                    let (function_builder, k_data) = make_addr k' ltyp1 false function_builder func in
                     let c_k_data = L.build_bitcast k_data string_t "ckdata" function_builder in
                     let ht = L.build_load addr_ht "ht" function_builder in
                     let c_v_data = L.build_call ht_get_func [|ht;c_k_data|] "cvdata" function_builder in
@@ -1066,7 +1096,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let ltyp2_ptr = L.build_load addr_t2 "t2*" function_builder in
                     let ltyp1 = L.type_of (L.build_load ltyp1_ptr "t1" function_builder) in
                     let ltyp2 = L.type_of (L.build_load ltyp2_ptr "t2" function_builder) in
-                    let k_data = make_addr k' ltyp1 false function_builder in
+                    let (function_builder, k_data) = make_addr k' ltyp1 false function_builder func in
                     let c_k_data = L.build_bitcast k_data string_t "ckdata" function_builder in
                     let ht = L.build_load addr_ht "ht" function_builder in
                     let ht' = L.build_call ht_remove_func [|ht;c_k_data|] "ht_" function_builder in
@@ -1444,7 +1474,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 (cond_bb::blocks, i - 1)
             in
 
-            (* TODO LEFT OFF HERE *)
             let make_typ_cond_block (blocks, i) (typ_or_def, _) then_block =
                 let cond_bb = L.append_block context ("cond" ^ string_of_int i) parent_func in
                 let cond_builder = L.builder_at_end context cond_bb in
@@ -1472,7 +1501,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let (cond_blocks, _) = List.fold_left2 make_typ_cond_block ([], (List.length blocks - 1)) (List.rev l) blocks
                     in
                     cond_blocks
-                (* TODO: implement typmatch *)
             ) in
 
             ignore(L.build_br (List.hd cond_blocks) builder);
@@ -1643,4 +1671,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     in
     let (_, builder, _) = List.fold_left stmt (main, builder, zero) sast in
     ignore(L.build_ret (L.const_int i32_t 0) builder);
+    (*
+    let print_malloc m = print_endline(L.string_of_llvalue m) in
+    List.iter print_malloc (Hashtbl.find malloc_addr "main");
+    *)
     the_module

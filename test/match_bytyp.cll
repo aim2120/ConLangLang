@@ -1,16 +1,23 @@
-type x = { Foo<int>, Bar<int> };
+type x = { Foo<int>, Bar<string> };
 
 num = (Foo) 0;
 
-match:int (num) bytype {
-    Foo {
-        sprint('foo');
-    }
-    Bar {
-        sprint('bar');
-    }
-    default {
-        0;
-    }
+f = <:int> {
+    match:int (num) bytype {
+        Foo {
+            sprint('foo');
+        }
+        Bar {
+            sprint('bar');
+        }
+        default {
+            0;
+        }
+    };
 };
 
+f();
+
+num = (Bar) 'a';
+
+f();
