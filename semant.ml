@@ -376,7 +376,7 @@ let check_ast ast =
             | _ -> make_err "unary operation on operand of incorrect type");
             (typlist, SUnop(o, (typlist, se)), vsym)
         | Cast(l,e) ->
-            let vsym = List.fold_left (fun vsym t -> check_valid_typ env t) env.vsym l in
+            let vsym = List.fold_left (fun vsym t -> check_valid_typ (add_env_vsym env vsym) t) env.vsym l in
             let at = to_assc_typ env.tsym (List.hd l) in
             let (typlist, se, vsym) = check_expr (add_env_vsym env vsym) e in
             let e_at = to_assc_typ env.tsym (List.hd typlist) in
