@@ -51,14 +51,14 @@ hashtable_t *ht_create( int size, bool key_is_string ) {
 
     /* Allocate the table itself. */
     if( ( hashtable = malloc( sizeof( hashtable_t ) ) ) == NULL ) {
-        return NULL;
+        exit(1);
     }
 
     add_malloc_addr((char *)hashtable);
 
     /* Allocate pointers to the head nodes. */
     if( ( hashtable->table = malloc( sizeof( entry_t * ) * size ) ) == NULL ) {
-        return NULL;
+        exit(1);
     }
 
     add_malloc_addr((char *)hashtable->table);
@@ -128,18 +128,18 @@ entry_t *ht_newpair( char *key, char *value ) {
     entry_t *newpair;
 
     if( ( newpair = malloc( sizeof( entry_t ) ) ) == NULL ) {
-        return NULL;
+        exit(1);
     }
     add_malloc_addr((char *)newpair);
 
     if( ( newpair->key = malloc( sizeof( char * ) ) ) == NULL ) {
-        return NULL;
+        exit(1);
     }
     add_malloc_addr((char *)newpair->key);
     memcpy( newpair->key, key, sizeof ( char * ) );
 
     if( ( newpair->value = malloc( sizeof( char * ) ) ) == NULL ) {
-        return NULL;
+        exit(1);
     }
     add_malloc_addr((char *)newpair->value);
     memcpy( newpair->value, value, sizeof ( char * ) );
@@ -201,10 +201,6 @@ hashtable_t *ht_add( hashtable_t *hashtable, char *key, char *value ) {
         hashtable->filled++;
 
         newpair = ht_newpair( key, value );
-
-        if ( newpair == NULL ) {
-            return NULL;
-        }
 
         /* We're at the start of the linked list in this bin. */
         if( next == hashtable->table[ bin ] ) {
@@ -337,7 +333,7 @@ char *ht_get( hashtable_t *hashtable, char *key ) {
 
     /* Did we actually find anything? */
     if( pair == NULL || pair->key == NULL || !(addr_cmp || str_cmp) ) {
-        return NULL;
+        exit(1);
 
     } else {
         return pair->value;
@@ -348,7 +344,7 @@ char **ht_keys(hashtable_t *hashtable) {
     char **keys;
 
     if ((keys = malloc((sizeof (char**)) * hashtable->filled)) == NULL) {
-        return NULL;
+        exit(1);
     }
     add_malloc_addr((char *)keys);
 
@@ -383,6 +379,7 @@ ll_node *ht_keys_list(hashtable_t *hashtable) {
     return head_key;
 };
 
+// for debugging, not pretty
 int ht_print (hashtable_t *hashtable) {
     int i = 0;
     for (int i = 0; i < hashtable->size; i++) {

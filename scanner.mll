@@ -54,7 +54,7 @@ rule token = parse
 | "byvalue"{ BYVAL }
 | "bytype" { BYTYP }
 | "default"{ DEFAULT }
-| "while"  { WHILE }
+| "dowhile"  { WHILE }
 | "if"     { IF }
 | "else"   { ELSE }
 | digits as lxm { INTLIT(int_of_string lxm) }

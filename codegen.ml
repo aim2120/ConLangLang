@@ -272,7 +272,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     let re_sub_func : L.llvalue = declare_func ("re_sub", string_t, [|L.pointer_type regex_t;string_t;string_t;i32_t|]) false in
 
     (* end stdlib functions *)
-    (* end external functions *)
 
     let rec expr parent_func builder (e : sx) =
         let assc_typ_of_typlist typlist =
@@ -424,7 +423,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
             init_params func f_name function_builder;
 
-            (* building dadd function *)
             let (function_builder, addr) = expr func function_builder (SId("#d")) in
             let (function_builder, k')   = expr func function_builder (SId("#k")) in
             let (function_builder, v')   = expr func function_builder (SId("#v")) in
@@ -949,7 +947,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
                     init_params func f_name function_builder;
 
-                    (* building dmem function *)
                     let (function_builder, addr) = expr func function_builder (SId("#d")) in
                     let (function_builder, k')   = expr func function_builder (SId("#k")) in
 
@@ -1006,7 +1003,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
                     init_params func f_name function_builder;
 
-                    (* building dget function *)
                     let (function_builder, addr) = expr func function_builder (SId("#d")) in
                     let (function_builder, k')   = expr func function_builder (SId("#k")) in
 
@@ -1021,10 +1017,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     let c_k_data = L.build_bitcast k_data string_t "ckdata" function_builder in
                     let ht = L.build_load addr_ht "ht" function_builder in
                     let c_v_data = L.build_call ht_get_func [|ht;c_k_data|] "cvdata" function_builder in
-                    (*
-                     * TODO: make cond branch if return value is null (key not found)
-                    let is_null = L.build_is_null c_v_data "is_null" function_builder in
-                    *)
                     let v_data = L.build_bitcast c_v_data (L.type_of ltyp2_ptr) "vdata" function_builder in
                     let v_data_load = L.build_load v_data "vdataload" function_builder in
                     ignore(L.build_ret v_data_load function_builder);
@@ -1086,7 +1078,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
                     init_params func f_name function_builder;
 
-                    (* building dremove function *)
                     let (function_builder, addr) = expr func function_builder (SId("#d")) in
                     let (function_builder, k')   = expr func function_builder (SId("#k")) in
 
@@ -1338,7 +1329,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (builder, arg_func) = expr parent_func builder f in
             let (builder, addr) = expr parent_func builder d in
 
-            (* initiate empty list *)
+            (* initiate empty dict *)
             let (t1, t2) = match (assc_typ_of_typlist typlist_d) with A.Dict(t1,t2) -> (t1,t2) | _ -> raise (Failure internal_err) in
             let (builder, new_dict_addr) = expr parent_func builder (SDictLit(t1,t2,[])) in
 
@@ -1499,6 +1490,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
                 | STypMatchList(l) ->
                     let (blocks, _) = List.fold_left make_block ([], 0) l in
+                    (* blocks is in reverse order *)
                     let (cond_blocks, _) = List.fold_left2 make_typ_cond_block ([], (List.length blocks - 1)) (List.rev l) blocks
                     in
                     cond_blocks
@@ -1533,17 +1525,17 @@ let translate (env : semantic_env) (sast : sstmt list)  =
         | SWhile(w) ->
             let ltyp = ltyp_of_typ w.swtyp in
             let out_addr = L.build_alloca ltyp "out" builder in
-            (* null value if while doesn't run *)
-            ignore(L.build_store (L.const_null ltyp) out_addr builder);
 
             let cond_bb = L.append_block context "while" parent_func in
-            ignore(L.build_br cond_bb builder);
             let (cond_builder, cond) = expr parent_func (L.builder_at_end context cond_bb) (snd w.swcond) in
 
             let body_bb = L.append_block context "while_body" parent_func in
             let (_, body_builder, body_out) = List.fold_left stmt (parent_func, L.builder_at_end context body_bb, zero) w.swblock in
             ignore(L.build_store body_out out_addr body_builder);
             ignore(L.build_br cond_bb body_builder);
+
+            (* body runs once without checking cond *)
+            ignore(L.build_br body_bb builder);
 
             let merge_bb = L.append_block context "merge" parent_func in
             ignore(L.build_cond_br cond body_bb merge_bb cond_builder);
@@ -1671,12 +1663,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             (func, builder, out)
     in
     let (_, builder, _) = List.fold_left stmt (main, builder, zero) sast in
-    (*
-    let print_block b =
-        print_endline(L.string_of_llvalue (L.value_of_block b));
-    in
-    L.iter_blocks print_block main;
-    *)
     ignore(L.build_call free_malloc_addrs_func [||] "" builder);
     ignore(L.build_ret (L.const_int i32_t 0) builder);
     the_module

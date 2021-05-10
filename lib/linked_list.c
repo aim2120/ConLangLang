@@ -1,4 +1,3 @@
-// TODO: change char to uint8_t
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -17,12 +16,12 @@ ll_node *ll_create(char *data) {
     ll_node *new_node;
 
     if ((new_node = malloc(sizeof (ll_node))) == NULL) {
-        return NULL;
+        exit(1);
     }
     add_malloc_addr((char *)new_node);
 
     if ((new_node->data = malloc(sizeof (char *))) == NULL) {
-        return NULL;
+        exit(1);
     }
     add_malloc_addr((char *)new_node->data);
 
@@ -49,7 +48,7 @@ ll_node *ll_add(ll_node *head, char *data, int n) {
     new_node = ll_create(data);
 
     if (new_node == NULL) {
-        return NULL;
+        exit(1);
     }
 
     if (prev != NULL) {
@@ -116,7 +115,7 @@ ll_node *ll_remove(ll_node *head, int n) {
     ll_node *prev = NULL;
 
     if (curr  == NULL) {
-        return NULL;
+        exit(1);
     }
 
     for (int i = 0; i < n && curr->next != NULL; i++) {
@@ -135,7 +134,7 @@ ll_node *ll_remove(ll_node *head, int n) {
 
 ll_node *ll_next(ll_node *node) {
     if (node == NULL) {
-        return NULL;
+        exit(1);
     }
 
     return node->next;
@@ -145,7 +144,7 @@ char *ll_get(ll_node *head, int n) {
     ll_node *curr = head;
 
     if (curr == NULL) {
-        return NULL;
+        exit(1);
     }
 
     for ( int i = 0; i < n && curr->next != NULL; i++ ) {
@@ -154,6 +153,7 @@ char *ll_get(ll_node *head, int n) {
     return curr->data;
 }
 
+// for debugging, not pretty
 int ll_print(ll_node *head) {
     int i = 0;
     ll_node *curr = head;
