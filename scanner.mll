@@ -15,7 +15,7 @@ rule token = parse
   [' ' '\t' '\r'] { token lexbuf } (* Whitespace *)
 | '\n'     { line_num := !line_num + 1; token lexbuf }
 | "{#"     { comment lexbuf }           (* Comments *)
-| "##"     { onelinecomment lexbuf }
+| "#"     { onelinecomment lexbuf }
 | '('      { LPAREN }
 | ')'      { RPAREN }
 | '{'      { LCURLY }
