@@ -1,0 +1,145 @@
+words = <string>['esti', 'lerni', 'havi', 'pano', 'pilko'];
+type verb = { Root<string>, Infinitive<string>, Present<string>, Past<string>, Future<string> };
+
+typedef $Stems = {
+    string inf;
+    string pres;
+    string past;
+    string fut;
+};
+
+typedef $VerbDef = {
+    Infinitive inf;
+    Present pres;
+    Past past;
+    Future fut;
+};
+
+$Stems stems = {
+    inf = 'i';
+    pres = 'as';
+    past = 'is';
+    fut = 'os';
+};
+
+conj = <string,regex>{ stems.inf: "[a-z]+(i)$", stems.pres: "[a-z]+(as)$", stems.past: "[a-z]+(is)$", stems.fut: "[a-z]+(os)$" };
+
+root = <list<Root> l, string w : list<Root>> {
+    w = match:string (true) byvalue {
+        rematch(dget(conj, stems.inf), w) {
+            resub(dget(conj, stems.inf), w, '', 1);
+        }
+        rematch(dget(conj, stems.pres), w)  {
+            resub(dget(conj, stems.pres), w, '', 1);
+        }
+        rematch(dget(conj, stems.past), w)  {
+            resub(dget(conj, stems.past), w, '', 1);
+        }
+        rematch(dget(conj, stems.fut), w)  {
+            resub(dget(conj, stems.fut), w, '', 1);
+        }
+        default  {
+            '';
+        }
+    };
+    if:list<Root> (ssize(w) > 0) {
+        ladd(l,(Root)w);
+    } else {
+        l;
+    };
+};
+
+create_verb = <dict<Root,$VerbDef> d, Root w: dict<Root,$VerbDef>> {
+    $VerbDef v = {
+        inf = (Infinitive)((string)w ^ stems.inf);
+        pres = (Present)((string)w ^ stems.pres);
+        past = (Past)((string)w ^ stems.past);
+        fut = (Future)((string)w ^ stems.fut);
+    };
+    dadd(d, w, v);
+};
+
+words = lfold(root, <Root>[], words);
+verb_dict = lfold(create_verb, <Root,$VerbDef>{}, words);
+
+type pronoun = { First<string>, Second<string>, Third<string>, Singular<string>, Plural<string>, Fem<string>, Masc<string> };
+typedef $PronounDef = {
+    list<First> fst;
+    Second snd;
+    list<Third> thrd;
+};
+type pronounCase = { Personal<$PronounDef>, Accusative<$PronounDef> };
+
+first_suffix = <list<First> l, string suf : list<First>> {
+    addsuf = <First p:First> {
+        (First)((string)p ^ suf);
+    };
+    lmap(addsuf, l);
+};
+
+third_suffix = <list<Third> l, string suf : list<Third>> {
+    addsuf = <Third p:Third> {
+        (Third)((string)p ^ suf);
+    };
+    lmap(addsuf, l);
+};
+
+Personal personal = {
+    fst = <First>[(First,Singular) 'mi', (First,Plural) 'ni'];
+    snd = (Second,Singular,Plural) 'vi';
+    thrd = <Third>[(Third,Singular,Fem) 'si', (Third,Singular) 'gi', (Third,Plural) 'ili'];
+};
+
+suf = 'n';
+
+Accusative accusative = {
+    fst = first_suffix(personal.fst, suf);
+    snd = personal.snd ^ suf;
+    thrd = third_suffix(personal.thrd, suf);
+};
+
+pronoun_list = <$PronounDef>[personal, accusative];
+
+typedef $Language = {
+    dict<Root,$VerbDef> verbs;
+    list<$PronounDef> pronouns;
+};
+
+$Language myLang = {
+    verbs = verb_dict;
+    pronouns = pronoun_list;
+};
+
+print_lang = <$Language lang:int> {
+    print_verbs = <Root r, $VerbDef v :$VerbDef>{
+        sprint('Root: ' ^ (string)r);
+        sprint('Infinitive: ' ^ (string)v.inf);
+        sprint('Present: ' ^ (string)v.pres);
+        sprint('Past: ' ^ (string)v.past);
+        sprint('Future: ' ^ (string)v.fut);
+        v;
+    };
+    dmap(print_verbs, lang.verbs);
+    print_pronouns = <$PronounDef p:$PronounDef>{
+        sprint('First Person:');
+        print_first = <First f : First>{
+            sprint((string)f);
+            f;
+        };
+        lmap(print_first, p.fst);
+
+        sprint('Second Person:');
+        sprint((string)p.snd);
+
+        sprint('Third Person:');
+        print_third = <Third t : Third>{
+            sprint((string)t);
+            t;
+        };
+        lmap(print_third, p.thrd);
+        p;
+    };
+    lmap(print_pronouns, lang.pronouns);
+    0;
+};
+print_lang(myLang);
