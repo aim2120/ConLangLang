@@ -11,8 +11,6 @@
  *  -- T.
  */
 
-// TODO: change char to uint8_t
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <limits.h>
@@ -21,6 +19,7 @@
 #include "hash_table.h"
 #include "find_prime.h"
 #include "linked_list.h"
+#include "malloc_manager.h"
 
 struct entry_s {
     char *key;
@@ -55,10 +54,18 @@ hashtable_t *ht_create( int size, bool key_is_string ) {
         return NULL;
     }
 
+    printf("adding from dict create ht\n");
+    add_malloc_addr((char *)hashtable);
+
     /* Allocate pointers to the head nodes. */
     if( ( hashtable->table = malloc( sizeof( entry_t * ) * size ) ) == NULL ) {
         return NULL;
     }
+
+    printf("adding from dict create ht->table\n");
+    add_malloc_addr((char *)hashtable->table);
+
+
     for( i = 0; i < size; i++ ) {
         hashtable->table[i] = NULL;
     }
@@ -87,28 +94,7 @@ hashtable_t *ht_grow( hashtable_t *hashtable ) {
         }
     }
 
-    ht_delete(hashtable);
     return new_hashtable;
-}
-
-/* Freeing the table */
-void ht_delete( hashtable_t *hashtable ) {
-    for (int i = 0; i < hashtable->size; i++) {
-        entry_t *pair = hashtable->table[i];
-        while ( pair != NULL) {
-            if (pair->key != NULL) {
-                free(pair->key);
-            }
-            if (pair->value != NULL) {
-                free(pair->value);
-            }
-            entry_t *temp = pair;
-            pair = pair->next;
-            free(temp);
-        }
-    }
-    free(hashtable->table);
-    free(hashtable);
 }
 
 
@@ -146,15 +132,21 @@ entry_t *ht_newpair( char *key, char *value ) {
     if( ( newpair = malloc( sizeof( entry_t ) ) ) == NULL ) {
         return NULL;
     }
+    printf("adding from dict newpair\n");
+    add_malloc_addr((char *)newpair);
 
     if( ( newpair->key = malloc( sizeof( char * ) ) ) == NULL ) {
         return NULL;
     }
+    printf("adding from dict newpair->key\n");
+    add_malloc_addr((char *)newpair->key);
     memcpy( newpair->key, key, sizeof ( char * ) );
 
     if( ( newpair->value = malloc( sizeof( char * ) ) ) == NULL ) {
         return NULL;
     }
+    printf("adding from dict newpair->value\n");
+    add_malloc_addr((char *)newpair->value);
     memcpy( newpair->value, value, sizeof ( char * ) );
 
     newpair->next = NULL;
@@ -292,16 +284,6 @@ hashtable_t *ht_remove(hashtable_t *hashtable, char *key) {
             hashtable->table[ bin ] = next->next;
         }
 
-        if (next->key != NULL) {
-            free(next->key);
-        }
-
-        if (next->value != NULL) {
-            free(next->value);
-        }
-
-        free(next);
-
         hashtable->filled--;
 
     } /* else -> couldn't find key, return hashtable unchanged */
@@ -373,6 +355,8 @@ char **ht_keys(hashtable_t *hashtable) {
     if ((keys = malloc((sizeof (char**)) * hashtable->filled)) == NULL) {
         return NULL;
     }
+    printf("adding from dict key\n");
+    add_malloc_addr((char *)keys);
 
     int j = 0;
 

@@ -570,7 +570,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
             let i_addr = L.build_alloca i32_t "iaddr" function_builder in
             ignore(L.build_store zero i_addr function_builder);
-            let accum_addr = L.build_malloc (L.type_of a') "accum" function_builder in
+            let (function_builder, accum_addr) = make_safe_malloc (L.build_malloc accum_typ "accum") accum_typ function_builder func in
             ignore(L.build_store a' accum_addr function_builder);
 
             let dictt1_addr = L.build_in_bounds_gep addr [|zero;zero|] "dictt1addr" function_builder in
@@ -656,12 +656,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let list_t = L.element_type (ltyp_of_typ (A.List(t))) in
             let ltyp = ltyp_of_typ t in
 
-            let addr = L.build_malloc list_t "list" builder in
+            let (builder, addr) = make_safe_malloc (L.build_malloc list_t "list") list_t builder parent_func in
             (if L.is_null addr then raise (Failure "malloc failed") else ());
             let addr_ltyp = L.build_in_bounds_gep addr [|zero;zero|] "listltyp" builder in
             let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" builder in
 
-            let null_t = L.build_malloc ltyp "null" builder in
+            let (builder, null_t) = make_safe_malloc (L.build_malloc ltyp "null") ltyp builder parent_func in
             (if L.is_null null_t then raise (Failure "malloc failed") else ());
             ignore(L.build_store (L.const_null ltyp) null_t builder);
             ignore(L.build_store null_t addr_ltyp builder);
@@ -700,13 +700,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let dict_t = L.element_type (ltyp_of_typ (A.Dict(t1,t2))) in
             let ltyp1 = ltyp_of_typ t1 in
             let ltyp2 = ltyp_of_typ t2 in
-            let addr = L.build_malloc dict_t "dict" builder in
+            let (builder, addr) = make_safe_malloc (L.build_malloc dict_t "dict") dict_t builder parent_func in
             (if L.is_null addr then raise (Failure "malloc failed") else ());
 
             (* dummy values so we know the actual types of the table *)
-            let null_t1 = L.build_malloc ltyp1 "nullt1" builder in
+            let (builder, null_t1) = make_safe_malloc (L.build_malloc ltyp1 "nullt1") ltyp1 builder parent_func in
             (if L.is_null null_t1 then raise (Failure "malloc failed") else ());
-            let null_t2 = L.build_malloc ltyp2 "nullt2" builder in
+            let (builder, null_t2) = make_safe_malloc (L.build_malloc ltyp2 "nullt2") ltyp2 builder parent_func in
             (if L.is_null null_t2 then raise (Failure "malloc failed") else ());
             let addr_t1 = L.build_in_bounds_gep addr [|zero;zero|] "dictt1" builder in
             let addr_t2 = L.build_in_bounds_gep addr [|zero; one|] "dictt2" builder in
@@ -779,9 +779,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let t = assc_typ_of_typlist typlist in
             let (builder, e1') = expr parent_func builder e1 in
             let (builder, e2') = expr parent_func builder e2 in
-            let out = (match t with
+            let (builder, out) = (match t with
 
-                A.Int -> (match o with
+                A.Int -> (builder, (match o with
                       A.Add     -> L.build_add
                     | A.Sub     -> L.build_sub
                     | A.Mult    -> L.build_mul
@@ -791,9 +791,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     | A.Greater -> L.build_icmp L.Icmp.Sgt
                     | A.Less    -> L.build_icmp L.Icmp.Slt
                     | _ -> raise (Failure internal_err)
-                ) e1' e2' "out" builder
+                ) e1' e2' "out" builder)
 
-                | A.Float -> (match o with
+                | A.Float -> (builder, (match o with
                       A.Add     -> L.build_fadd
                     | A.Sub     -> L.build_fsub
                     | A.Mult    -> L.build_fmul
@@ -803,24 +803,24 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                     | A.Greater -> L.build_fcmp L.Fcmp.Ogt
                     | A.Less    -> L.build_fcmp L.Fcmp.Olt
                     | _ -> raise (Failure internal_err)
-                ) e1' e2' "out" builder
+                ) e1' e2' "out" builder)
 
-                | A.Bool -> (match o with
+                | A.Bool -> (builder, (match o with
                       A.And -> L.build_and
                     | A.Or  -> L.build_or
                     | _ -> raise (Failure internal_err)
-                ) e1' e2' "out" builder
+                ) e1' e2' "out" builder)
 
                 | A.String -> (match o with
                     A.Concat ->
                         let len1 = L.build_call strlen_func [|e1'|] "e1len" builder in
                         let len2 = L.build_call strlen_func [|e2'|] "e2len" builder in
                         let len = L.build_add len1 len2 "len" builder in
-                        let out_addr = L.build_array_malloc i8_t len "out" builder in
+                        let (builder, out_addr) = make_safe_malloc (L.build_array_malloc i8_t len "out") i8_t builder parent_func in
                         (if L.is_null out_addr then raise (Failure "malloc failed") else ());
                         let out_addr = L.build_call strcpy_func [|out_addr; e1'|] "cpy" builder in
                         let out_addr = L.build_call strcat_func [|out_addr; e2'|] "cat" builder in
-                        out_addr
+                        (builder, out_addr)
                     | _ -> raise (Failure internal_err)
                 )
 
@@ -834,7 +834,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                         let e2_head_node = L.build_load e2_addr_head "e2headnode" builder in
                         let head_node = L.build_call ll_append_func [|e1_head_node;e2_head_node|] "concatheadnode" builder in
                         ignore(L.build_store head_node addr_head builder);
-                        addr
+                        (builder, addr)
 
                     | _ -> raise (Failure internal_err)
                 )
@@ -1177,7 +1177,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
                     let i_addr = L.build_alloca i32_t "iaddr" function_builder in
                     ignore(L.build_store zero i_addr function_builder);
-                    let accum_addr = L.build_malloc (L.type_of a') "accum" function_builder in
+                    let (function_builder, accum_addr) = make_safe_malloc (L.build_malloc accum_typ "accum") accum_typ function_builder func in
                     ignore(L.build_store a' accum_addr function_builder);
                     let len = L.build_call strlen_func [|addr|] "len" function_builder in
 
@@ -1188,7 +1188,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
 
                     let body_bb = L.append_block context "foldbody" func in
                     let body_builder = L.builder_at_end context body_bb in
-                    let c_str = L.build_array_malloc i8_t two "cstr" body_builder in
+                    let (body_builder, c_str) = make_safe_malloc (L.build_array_malloc i8_t two "cstr") i8_t body_builder func in
                     let c_char = L.build_in_bounds_gep c_str [|zero|] "cchar" body_builder in
                     let c_null = L.build_in_bounds_gep c_str [|one|] "cnull" body_builder in
                     ignore(L.build_store (L.const_int i8_t 0) c_null body_builder);
@@ -1588,23 +1588,23 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                 let len = L.build_call snprintf_func [|L.const_null string_t;zero;fmt;e'|] "" builder
                 in
                 let len = L.build_add len one "" builder in
-                let addr = L.build_array_malloc i8_t len "strcast" builder in
+                let (builder, addr) = make_safe_malloc (L.build_array_malloc i8_t len "strcast") i8_t builder parent_func in
                 ignore(L.build_call snprintf_func [|addr;len;fmt;e'|] "" builder);
-                addr
+                (builder, addr)
             in
             let e_ltyp = L.type_of e' in
             let c_ltyp = ltyp_of_typ (List.hd t) in
-            let e_cast =
-                if c_ltyp = i32_t then (
+            let (builder, e_cast) =
+                if c_ltyp = i32_t then (builder, (
                     if e_ltyp = float_t then
                         L.build_fptosi e' c_ltyp "intcast" builder
                     else e'
-                )
-                else if c_ltyp = float_t then (
+                ))
+                else if c_ltyp = float_t then (builder, (
                     if e_ltyp = i32_t then
                         L.build_sitofp e' c_ltyp "floatcast" builder
                     else e'
-                )
+                ))
                 else if c_ltyp = string_t then (
                     if e_ltyp = i32_t then
                         to_string i32_format
@@ -1612,9 +1612,9 @@ let translate (env : semantic_env) (sast : sstmt list)  =
                         to_string i32_format
                     else if e_ltyp = float_t then
                         to_string float_format
-                    else e'
+                    else (builder, e')
                 ) else (
-                    e'
+                    (builder, e')
                 )
             in
             (builder, e_cast)
