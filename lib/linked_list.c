@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include "linked_list.h"
+#include "malloc_manager.h"
 
 struct ll_node_s {
     char *data;
@@ -18,10 +19,14 @@ ll_node *ll_create(char *data) {
     if ((new_node = malloc(sizeof (ll_node))) == NULL) {
         return NULL;
     }
+    printf("adding from ll create node\n");
+    add_malloc_addr((char *)new_node);
 
     if ((new_node->data = malloc(sizeof (char *))) == NULL) {
         return NULL;
     }
+    printf("adding from ll create node->data\n");
+    add_malloc_addr((char *)new_node->data);
 
     memcpy(new_node->data, data, sizeof (char *));
 
@@ -127,8 +132,6 @@ ll_node *ll_remove(ll_node *head, int n) {
         head = head->next;
     }
 
-    free(curr);
-
     return head;
 }
 
@@ -175,40 +178,6 @@ int ll_size(ll_node *head) {
         curr = curr->next;
     }
     return i;
-}
-
-/* TODO: implement later if necessary
-ll_node *ll_dup(ll_node *head) {
-    ll_node *newhead;
-    ll_node *curr = head;
-
-    if (curr == NULL) {
-        return NULL;
-    }
-
-    newhead = ll_create(curr->data);
-    curr = curr->next;
-    while (curr != NULL) {
-        ll_add(newhead, curr->data, );
-        curr = curr->next;
-    }
-
-    return newhead;
-}
-*/
-
-void ll_del(ll_node *head) {
-    ll_node *curr = head;
-    ll_node *temp;
-
-    while (curr != NULL) {
-        if (curr->data != NULL) {
-            free(curr->data);
-        }
-        temp = curr;
-        curr = curr->next;
-        free(temp);
-    }
 }
 
 /*
