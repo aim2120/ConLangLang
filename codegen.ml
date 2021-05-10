@@ -147,7 +147,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     (* func name -> locals table *)
     let func_params_tbl : (string, (string, L.llvalue) Hashtbl.t) Hashtbl.t = Hashtbl.create 10 in
     let func_tbl : (string, L.llvalue) Hashtbl.t = Hashtbl.create 10 in
-    let malloc_addr : (string, L.llvalue list) Hashtbl.t = Hashtbl.create 10 in
 
     (* start external functions *)
     let declare_func (name, ret, args) var_arg =
@@ -163,6 +162,13 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     in
 
     let exit_func : L.llvalue = declare_func ("exit", void_t, [|i32_t|]) false in
+
+    (* malloc manager functions *)
+    let init_malloc_addr_func : L.llvalue = declare_func ("init_malloc_addr", void_t, [||]) false in
+    let add_malloc_addr_func : L.llvalue = declare_func ("add_malloc_addr", void_t, [|L.pointer_type i8_t|]) false in
+    let free_malloc_addrs_func : L.llvalue = declare_func ("free_malloc_addrs", void_t, [||]) false in
+
+    ignore(L.build_call init_malloc_addr_func [||] "" builder);
 
     (* string stuff *)
     let printf_func   : L.llvalue = declare_func ("printf", i32_t, [|string_t|]) true in
@@ -288,14 +294,10 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let cond = L.build_icmp L.Icmp.Eq addr (L.const_null (L.pointer_type (t))) "mallocnull" builder in
             ignore(L.build_cond_br cond exit_bb cont_bb builder);
 
-            let f_name = L.value_name func in
-            let malloced_in_func = (match Hashtbl.find_opt malloc_addr f_name with
-                Some l -> l
-                | None -> [])
-            in
-            Hashtbl.replace malloc_addr f_name (addr::malloced_in_func);
-
             let builder = L.builder_at_end context cont_bb in
+            let c_addr = L.build_bitcast addr (L.pointer_type i8_t) "caddr" builder in
+            ignore(L.build_call add_malloc_addr_func [|c_addr|] "" builder);
+
             (builder, addr)
         in
 
@@ -399,7 +401,6 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let (function_builder, e') = expr func function_builder (SId("#e")) in
             let (function_builder, n') = expr func function_builder (SId("#n")) in
 
-            let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" function_builder in
             let addr_head = L.build_in_bounds_gep addr [|zero;one|] "listhead" function_builder in
             let head_node = L.build_load addr_head "headnode" function_builder in
 
@@ -449,7 +450,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             func
         in
 
-        let make_lget_func (f_name : string) (addr : L.llvalue) =
+        let make_lget_func (f_name : string) (addr : L.llvalue) (builder: L.llbuilder) =
             let addr_typ = L.type_of addr in
             let addr_t = L.build_in_bounds_gep addr [|zero;zero|] "listt" builder in
             let t = L.element_type (L.element_type (L.type_of addr_t)) in
@@ -981,7 +982,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             let f_name = "lget" ^ (str_of_ltyp addr_type) in
             let func = (try Hashtbl.find func_tbl f_name
                 with Not_found -> (
-                    let func = make_lget_func f_name addr in
+                    let func = make_lget_func f_name addr builder in
                     Hashtbl.add func_tbl f_name func;
                     func
                 )
@@ -1670,9 +1671,12 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             (func, builder, out)
     in
     let (_, builder, _) = List.fold_left stmt (main, builder, zero) sast in
-    ignore(L.build_ret (L.const_int i32_t 0) builder);
     (*
-    let print_malloc m = print_endline(L.string_of_llvalue m) in
-    List.iter print_malloc (Hashtbl.find malloc_addr "main");
+    let print_block b =
+        print_endline(L.string_of_llvalue (L.value_of_block b));
+    in
+    L.iter_blocks print_block main;
     *)
+    ignore(L.build_call free_malloc_addrs_func [||] "" builder);
+    ignore(L.build_ret (L.const_int i32_t 0) builder);
     the_module

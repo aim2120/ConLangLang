@@ -1,3 +1,4 @@
+// TODO: change char to uint8_t
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

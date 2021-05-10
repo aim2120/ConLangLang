@@ -1,7 +1,8 @@
 /*
  * -----------------------------------------------
  * Simple hash table implementation
- * Source: https://gist.github.com/tonious/1377667
+ * Sourced from https://gist.github.com/tonious/1377667
+ * with many changes made
  * -----------------------------------------------
  */
 /* Read this comment first: https://gist.github.com/tonious/1377667#gistcomment-2277101
@@ -9,6 +10,8 @@
  *
  *  -- T.
  */
+
+// TODO: change char to uint8_t
 
 #include <stdlib.h>
 #include <stdio.h>

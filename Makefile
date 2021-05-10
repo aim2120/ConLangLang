@@ -7,7 +7,7 @@ clean:
 	./bin/clean.zsh
 
 .PHONY: lib
-lib: find_prime.o hash_table.o linked_list.o regex.o
+lib: find_prime.o hash_table.o linked_list.o regex.o malloc_manager.o
 
 .PHONY: test
 test:
@@ -28,6 +28,9 @@ linked_list.o:
 
 regex.o:
 	gcc -o cll_build/regex.o -c lib/regex.c
+
+malloc_manager.o:
+	gcc -o cll_build/malloc_manager.o -c lib/malloc_manager.c
 
 parser.ml:
 	ocamlyacc -v parser.mly
