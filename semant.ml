@@ -241,6 +241,7 @@ let check_ast ast =
             | UserTypDef(utd) ->
                 let _ = find_in_map env.tdsym utd (utd ^ " not a defined type") in
                 env.vsym
+            | Fun(_,_) -> make_err "funs cannot be a stored/passed datatype"
             | _ -> env.vsym
     in
     let check_last_stmt stmts t =
@@ -305,12 +306,8 @@ let check_ast ast =
             let vsym' = add_built_in_dict vsym' t1 t2 in
             ([Dict(t1,t2)], SDictLit(t1, t2, List.rev slist), vsym')
         | FunLit(f) ->
-            (match f.ftyp with Fun(_,_) -> make_err "cannot return function from function"
-                | _ -> ());
             let vsym = check_valid_typ env f.ftyp in
             let check_formal vsym (t, id) =
-                (match t with Fun(_,_) -> make_err "cannot pass function as argument"
-                    | _ -> ());
                 let vsym = check_valid_typ (add_env_vsym env vsym) t in
                 add_var vsym (id, [t])
             in
