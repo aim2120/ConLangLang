@@ -34,7 +34,11 @@ for t in ./$src_dir/*.cll; do
     output+="$(./bin/make_test_exe.sh $filename)"
 
     if test -f "./${build_dir}/${filename}"; then
-        progoutput="$(./${build_dir}/${filename})"
+        if [ "${filename}" = "stdin" ]; then
+            progoutput="$(cat ${src_dir}/test_input | ./${build_dir}/${filename})"
+        else
+            progoutput="$(./${build_dir}/${filename})"
+        fi
         outputfile="${build_dir}/${filename}.out"
         echo $progoutput > $outputfile
         outputfilecheck="${src_dir}/${filename}.out"

@@ -1,3 +1,4 @@
+#include <stdbool.h>
 struct ll_node_s;
 typedef struct ll_node_s ll_node;
 ll_node *ll_create(char *);

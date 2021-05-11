@@ -1,0 +1,5 @@
+print_string = <string s:string>{
+    sprint(s);
+    s;
+};
+lmap(print_string,stdin);

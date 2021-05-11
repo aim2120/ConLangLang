@@ -10,19 +10,6 @@ module StringMap = Map.Make(String)
 
    Check each stmt of program *)
 
-(*
-type semantic_env = {
-    tvsym: (string * typ) list StringMap.t;
-    (* type variable name: list of user type names and definitions *)
-    tsym: typ * typ StringMap.t;
-    (* user type name: defining type and built-in associate type *)
-    tdsym: (typ * string) list StringMap.t;
-    (* user typedef name: child declaration list *)
-    vsym: typ list StringMap.t;
-    (* user variables: all types *)
-}
-*)
-
 type semantic_env = {
     tvsym: (string * typ) list StringMap.t;
     (* type variable name: list of user type names and definitions *)
@@ -153,7 +140,7 @@ let check_ast ast =
         tvsym=StringMap.empty;
         tsym=StringMap.empty;
         tdsym=StringMap.empty;
-        vsym=built_in_funs;
+        vsym=(StringMap.add "stdin" [List(String)] built_in_funs);
     }
     in
     let add_env_tvsym env tvsym = {
@@ -405,6 +392,7 @@ let check_ast ast =
             let child_t = find id td_children in
             ([child_t], SChildAcc((typlist, se), id), vsym)
         | Assign(id,e) ->
+            (if id = "stdin" then make_err "cannot redefine stdin variable");
             let (typlist, se, vsym) = check_expr env e in
             let old_typlist = (try (find_in_map vsym id "") with Failure(_) -> [Int]) in
             (match (to_assc_typ env.tsym (List.hd old_typlist)) with

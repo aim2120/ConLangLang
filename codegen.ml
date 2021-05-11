@@ -161,6 +161,7 @@ let translate (env : semantic_env) (sast : sstmt list)  =
     in
 
     let exit_func : L.llvalue = declare_func ("exit", void_t, [|i32_t|]) false in
+    let ll_of_stdin_func : L.llvalue = declare_func ("ll_of_stdin", (L.pointer_type ll_node), [||]) false in
 
     (* malloc manager functions *)
     let init_malloc_addr_func : L.llvalue = declare_func ("init_malloc_addr", void_t, [||]) false in
@@ -1619,7 +1620,17 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             Hashtbl.add utd_typs v (td, name_pos);
             (func, builder, out)
     in
+
+    (* make stdin list *)
+    let (builder, stdin_addr) = expr main builder (SListLit(A.String,[])) in
+    Hashtbl.add var_tbl "stdin" (stdin_addr, main);
+    L.set_value_name "stdin" stdin_addr;
+    let stdin_addr_head = L.build_in_bounds_gep stdin_addr [|zero;one|] "stdinlisthead" builder in
+    let stdin_head_node = L.build_call ll_of_stdin_func [||] "stdinheadnode" builder in
+    ignore(L.build_store stdin_head_node stdin_addr_head builder);
+
     let (_, builder, _) = List.fold_left stmt (main, builder, zero) sast in
     ignore(L.build_call free_malloc_addrs_func [||] "" builder);
     ignore(L.build_ret (L.const_int i32_t 0) builder);
+
     the_module

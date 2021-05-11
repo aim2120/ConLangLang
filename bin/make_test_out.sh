@@ -14,8 +14,13 @@ for t in ./test/*.cll; do
         continue
     fi
     outfile="test/${filename}.out"
-    ./cll_build/$filename
-    output=$(./cll_build/$filename)
+    if [ "${filename}" = "stdin" ]; then
+        cat test/test_input | ./cll_build/$filename
+        output=$(cat test/test_input | ./cll_build/$filename)
+    else
+        ./cll_build/$filename
+        output=$(./cll_build/$filename)
+    fi
     if [ $? -eq 139 ]; then
     	echo "${red}!!!ERROR: SEGFAULT!!!"
         echo "${red}!!!NO OUTPUT FOR $filename!!!${reset}"
