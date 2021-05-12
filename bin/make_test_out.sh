@@ -6,6 +6,11 @@ reset=`tput sgr0`
 for t in ./test/*.cll; do
     filename=${t%.cll}
     filename=${filename##*/}
+
+    if [[ "${filename}" == *"fail"* ]]; then
+        continue
+    fi
+
     echo "**********************************"
     if [[ -f "test/${filename}.out" ]]; then
         echo "OUTPUT ALREADY EXISTS FOR ${filename}"

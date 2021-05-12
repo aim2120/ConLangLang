@@ -19,13 +19,13 @@ let () =
                 let lexbuf = Lexing.from_channel !channel in
                 Parser.program Scanner.token lexbuf
             with Parsing.Parse_error ->
-                let s = ("!!!ERROR!!! line " ^ string_of_int !Scanner.line_num ^ ": parsing error\n")
+                let s = ("!!!ERROR!!! line " ^ string_of_int !Scanner.line_num ^ ": parsing error")
                 in
-                raise (Failure (s ^ "\n"))
+                raise (Failure (s))
             | Failure(msg) ->
-                let s = ("!!!ERROR!!! line " ^ string_of_int !Scanner.line_num ^ ": " ^ msg ^ "\n")
+                let s = ("!!!ERROR!!! line " ^ string_of_int !Scanner.line_num ^ ": " ^ msg)
                 in
-                raise (Failure (s ^ "\n"))
+                raise (Failure (s))
         in
         match !action with
             Ast -> print_string (Ast.string_of_program ast)
@@ -36,9 +36,9 @@ let () =
                         let log = open_out file_out in
                         Printf.fprintf log "%s" (Ast.string_of_program ast);
                         close_out log;
-                        let s = (msg ^ "\n(Check " ^ file_out ^ " for line numbers)\n")
+                        let s = (msg ^ "\n(Check " ^ file_out ^ " for line numbers)")
                         in
-                        raise (Failure (s ^ "\n"))
+                        raise (Failure (s))
                 in
                 match !action with
                 Ast -> ()

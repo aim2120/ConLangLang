@@ -13,6 +13,13 @@ output+="THESE TESTS SHOULD PASS\n"
 output+="***********************************\n"
 output+="\n"
 for t in ./$src_dir/*.cll; do
+    filename=${t%.cll}
+    filename=${filename##*/}
+
+    if [[ "${filename}" == *"fail"* ]]; then
+        continue
+    fi
+
     output+="***********************************"
     output+="***********************************\n"
     to_stdout="TESTING FILE: ${t}"
@@ -29,11 +36,9 @@ for t in ./$src_dir/*.cll; do
 
     output+="Program Output\n\n"
 
-    filename=${t%.cll}
-    filename=${filename##*/}
-    output+="$(./bin/make_test_exe.sh $filename)"
+    output+="$(./bin/make_test_exe.sh $filename 2>&1)\n"
 
-    if test -f "./${build_dir}/${filename}"; then
+    if [ $? -eq 0 ]; then
         if [ "${filename}" = "stdin" ]; then
             progoutput="$(cat ${src_dir}/test_input | ./${build_dir}/${filename})"
         else
@@ -47,13 +52,13 @@ for t in ./$src_dir/*.cll; do
         echo $progoutput > $outputfile
         outputfilecheck="${src_dir}/${filename}.out"
         if cmp -s $outputfile $outputfilecheck; then
-            echo "${green}${to_stdout} passed${reset}"
+            echo "${green}[ ✓ ] ${to_stdout} ${reset}"
         else
-            echo "${red}!!!${to_stdout} output failed!!!${reset}"
+            echo "${red}[ X ] !!!${to_stdout} output failed!!!${reset}"
         fi
         output+="${fileoutput}\n"
     else
-        echo "!!!${to_stdout} make_test_exe failed!!!"
+        echo "${red}[ X ] !!!${to_stdout} compilation failed!!!${reset}"
     fi
 
     output+="***********************************"
@@ -61,18 +66,26 @@ for t in ./$src_dir/*.cll; do
     output+="\n"
 done
 
-#output+="***********************************\n"
-#output+="THESE TESTS SHOULD FAIL\n"
-#output+="***********************************\n"
-#output+="\n"
-#for t in ./test/fail/*.cll; do
-#    output+="***********************************\n"
-#    to_stdout="TESTING FILE: ${t}"
-#    echo "$to_stdout"
-#    output+="${to_stdout}\n"
-#    output+="***********************************\n"
-#    output+="$(./cll.native -s $t)\n"
-#    output+="***********************************\n"
-#    output+="\n"
-#done
+output+="***********************************\n"
+output+="THESE TESTS SHOULD FAIL\n"
+output+="***********************************\n"
+output+="\n"
+for t in ./$src_dir/*.cll; do
+    if ! [[ "${t}" == *"fail"* ]]; then
+        continue
+    fi
+
+    output+="***********************************\n"
+    to_stdout="TESTING FILE: ${t}"
+    output+="${to_stdout}\n"
+    output+="***********************************\n"
+    output+="$(./cll.native $t 2>&1)\n"
+    if [ $? -eq 2 ]; then
+        echo "${green}[ ✓ ] ${to_stdout}${reset}"
+     else
+         echo "${red}[ X ] !!!${to_stdout} failed to fail!!!${reset}"
+     fi
+    output+="***********************************\n"
+    output+="\n"
+done
 echo $output > test.out
