@@ -67,7 +67,7 @@ rule token = parse
 | uppercase ['a'-'z' 'A'-'Z' '0'-'9' '_']*     as lxm { UT(lxm) }
 | '$' uppercase ['a'-'z' 'A'-'Z' '0'-'9' '_']* as lxm { UTD(lxm) }
 | eof { EOF }
-| _ as char { raise (Failure("illegal character " ^ Char.escaped char)) }
+| _ as char { raise (Failure("illegal character " ^ Char.escaped char ^ " on line " ^ string_of_int !line_num)) }
 
 and comment = parse
  '\n'  { line_num := !line_num + 1; comment lexbuf }
