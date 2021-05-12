@@ -394,10 +394,18 @@ let check_ast ast =
         | Assign(id,e) ->
             (if id = "stdin" then make_err "cannot redefine stdin variable");
             let (typlist, se, vsym) = check_expr env e in
-            let old_typlist = (try (find_in_map vsym id "") with Failure(_) -> [Int]) in
-            (match (to_assc_typ env.tsym (List.hd old_typlist)) with
-                Fun(_,_) -> make_err ("cannot redefine function variable " ^ id)
-                | _ -> ());
+            let assc_t = to_assc_typ env.tsym (List.hd typlist) in
+            let old_assc_t = (try Some (
+                let old_typlist = find_in_map vsym id "" in
+                (to_assc_typ env.tsym (List.hd old_typlist))
+            ) with Failure(_) -> None) in
+            (match old_assc_t with
+                Some old_assc_t -> (match old_assc_t with
+                    Fun(_,_) -> make_err ("cannot redefine function variable " ^ id)
+                    | _ when old_assc_t = assc_t -> ()
+                    | _ -> make_err ("variable reassignment of " ^ id ^ " must be of the previous type " ^ string_of_typ old_assc_t));
+                | None -> ()
+            );
             let vsym' = add_var vsym (id, typlist) in
             (typlist, SAssign(id, (typlist, se)), vsym')
         | TypDefAssign(td,id,l) ->

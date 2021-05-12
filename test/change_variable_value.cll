@@ -1,0 +1,8 @@
+suf = 's';
+f = <string s :string>{
+    s ^ suf;
+};
+sprint(f('cat'));
+suf = 'er';
+sprint(f('surf'));
+

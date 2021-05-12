@@ -1,4 +1,0 @@
-x = 2;
-sprint((string)(x * 8));
-x = 'hello';
-sprint(x);

@@ -59,8 +59,8 @@ create_verb = <dict<Root,$VerbDef> d, Root w: dict<Root,$VerbDef>> {
     dadd(d, w, v);
 };
 
-words = lfold(root, <Root>[], words);
-verb_dict = lfold(create_verb, <Root,$VerbDef>{}, words);
+root_words = lfold(root, <Root>[], words);
+verb_dict = lfold(create_verb, <Root,$VerbDef>{}, root_words);
 
 type pronoun = { First<string>, Second<string>, Third<string>, Singular<string>, Plural<string>, Fem<string>, Masc<string> };
 typedef $PronounDef = {
