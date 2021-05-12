@@ -1,3 +1,7 @@
+/*
+ * Author: Annalise Mariottini (aim2120)
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <regex.h>
@@ -59,26 +63,3 @@ char *re_sub(regex_t *r, char *s, char *t, int n) {
     return s_;
 }
 
-/*
-int main() {
-    regex_t *regex;
-    regmatch_t buf[BUFSIZE];
-
-    regex = re_create("(r(on)+g)");
-
-    if (regex == NULL) {
-        printf("regex not created\n");
-    }
-
-    if (regexec(regex, "rononong", BUFSIZE, buf, 0)) {
-        printf("NO MATCH\n");
-    } else {
-        for (int i = 0; i < BUFSIZE; i++) {
-            printf("%lld %lld\n", buf[i].rm_so, buf[i].rm_eo);
-        }
-    }
-
-    char * new_s = re_sub(regex,"rononong", "in", 2);
-    printf("%s\n", new_s);
-}
-*/

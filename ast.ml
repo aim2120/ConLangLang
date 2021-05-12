@@ -1,4 +1,5 @@
 (* CLL Abstract Syntax Tree and functions for printing it *)
+(* Author: Annalise Mariottini (aim2120) *)
 
 type binop = Mult | Div | Mod | Add | Sub | Concat | And | Or | Equal | Greater | Less
 
@@ -79,8 +80,8 @@ let string_of_binop = function
   | And -> "&&"
   | Or -> "||"
   | Equal -> "=="
-  | Greater -> ">>"
-  | Less -> "<<"
+  | Greater -> ">"
+  | Less -> "<"
 
 let string_of_uop = function
     Neg -> "-"

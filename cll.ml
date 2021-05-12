@@ -1,4 +1,5 @@
 (* Top level of the CLL compiler *)
+(* Author: Annalise Mariottini (aim2120) *)
 
 type action = Ast | Sast | LLVM_IR | Compile
 

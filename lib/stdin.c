@@ -1,3 +1,7 @@
+/*
+ * Author: Annalise Mariottini (aim2120)
+ */
+
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>

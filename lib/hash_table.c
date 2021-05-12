@@ -1,10 +1,12 @@
 /*
- * -----------------------------------------------
- * Simple hash table implementation
- * Sourced from https://gist.github.com/tonious/1377667
- * with many changes made
- * -----------------------------------------------
+ * Author: Annalise Mariottini (aim2120)
+ * Sourced from https://gist.github.com/tonious/1377667 with many changes made
  */
+
+/*
+ * Simple hash table implementation
+ */
+
 /* Read this comment first: https://gist.github.com/tonious/1377667#gistcomment-2277101
  * 2017-12-05
  *
@@ -404,28 +406,3 @@ int ht_size (hashtable_t *hashtable) {
     return hashtable->filled;
 }
 
-/*
-int main( int argc, char **argv ) {
-
-    hashtable_t *hashtable = ht_create( 0 );
-
-    ht_add( hashtable, "key1", "inky" );
-    ht_print(hashtable);
-    ht_add( hashtable, "key2", "pinky" );
-    ht_print(hashtable);
-    ht_add( hashtable, "key3", "blinky" );
-    ht_print(hashtable);
-    ht_add( hashtable, "key4", "floyd" );
-    ht_print(hashtable);
-
-    ht_remove( hashtable, "key1" );
-    ht_print(hashtable);
-
-    printf( "%s\n", ht_get( hashtable, "key1" ) );
-    printf( "%s\n", ht_get( hashtable, "key2" ) );
-    printf( "%s\n", ht_get( hashtable, "key3" ) );
-    printf( "%s\n", ht_get( hashtable, "key4" ) );
-
-    return 0;
-}
-*/

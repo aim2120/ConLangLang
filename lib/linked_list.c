@@ -1,3 +1,7 @@
+/*
+ * Author: Annalise Mariottini (aim2120)
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -178,20 +182,3 @@ int ll_size(ll_node *head) {
     return i;
 }
 
-/*
-int main() {
-
-    char *x0;
-    char *x1;
-    char *x2;
-    ll_node *head = ll_create("a");
-    ll_add(head, "b");
-    ll_add(head, "c");
-    x0 = ll_get(head, 0);
-    x1 = ll_get(head, 1);
-    x2 = ll_get(head, 2);
-    printf("%s %s %s\n", x0, x1, x2);
-
-    return 0;
-}
-*/

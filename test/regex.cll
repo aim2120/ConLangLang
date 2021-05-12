@@ -7,7 +7,6 @@ f = <regex r, string s:int> {
     };
 };
 
-{#
 f(r,'abc');
 f(r,'xxxxabcabcxxxxx');
 f(r,'aaa');
@@ -23,4 +22,3 @@ s3 = 'rololongolong';
 s4 = resub(r3,s3,'lin',2);
 sprint(s3);
 sprint(s4);
-#}

@@ -1,6 +1,8 @@
-# ConLangLang
+# ConLangLang (CLL)
 
-[Language Reference Manuage](https://github.com/aim2120/ConLangLang/blob/master/ConLangLang_Language_Reference_Manual.pdf)
+Compiler for the CLL language written by Annalise Mariottini (aim2120)
+
+[CLL Language Reference Manuage](https://github.com/aim2120/ConLangLang/blob/master/ConLangLang_Language_Reference_Manual.pdf)
 
 Compiling a program:
 * To compile cll.native: `make all`

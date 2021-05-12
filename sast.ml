@@ -1,4 +1,5 @@
 (* CLL Semantically-checked Abstract Syntax Tree and functions for printing it *)
+(* Author: Annalise Mariottini *)
 
 open Ast
 

@@ -1,4 +1,5 @@
 (* Ocamllex scanner for CLL *)
+(* Author: Annalise Mariottini (aim2120) *)
 
 {
 open Parser

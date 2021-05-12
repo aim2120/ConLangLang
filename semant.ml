@@ -1,4 +1,5 @@
 (* Semantic checking for the CLL compiler *)
+(* Author: Annalise Mariottini (aim2120) *)
 
 open Ast
 open Sast
