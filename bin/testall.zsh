@@ -37,7 +37,11 @@ for t in ./$src_dir/*.cll; do
         if [ "${filename}" = "stdin" ]; then
             progoutput="$(cat ${src_dir}/test_input | ./${build_dir}/${filename})"
         else
-            progoutput="$(./${build_dir}/${filename})"
+            if [ "${filename}" = "example_program" ]; then
+                progoutput="$(cat ${src_dir}/example_program_input | ./${build_dir}/${filename})"
+            else
+                progoutput="$(./${build_dir}/${filename})"
+            fi
         fi
         outputfile="${build_dir}/${filename}.out"
         echo $progoutput > $outputfile

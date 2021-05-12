@@ -1,4 +1,4 @@
-words = <string>['esti', 'lerni', 'havi', 'pano', 'pilko'];
+words = stdin;
 type verb = { Root<string>, Infinitive<string>, Present<string>, Past<string>, Future<string> };
 
 typedef $Stems = {

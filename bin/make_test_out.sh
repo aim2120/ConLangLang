@@ -18,8 +18,13 @@ for t in ./test/*.cll; do
         cat test/test_input | ./cll_build/$filename
         output=$(cat test/test_input | ./cll_build/$filename)
     else
-        ./cll_build/$filename
-        output=$(./cll_build/$filename)
+        if [ "${filename}" = "example_program" ]; then
+            cat test/example_program_input | ./cll_build/$filename
+            output=$(cat test/example_program_input | ./cll_build/$filename)
+        else
+            ./cll_build/$filename
+            output=$(./cll_build/$filename)
+        fi
     fi
     if [ $? -eq 139 ]; then
     	echo "${red}!!!ERROR: SEGFAULT!!!"

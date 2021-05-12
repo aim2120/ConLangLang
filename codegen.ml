@@ -684,7 +684,8 @@ let translate (env : semantic_env) (sast : sstmt list)  =
             ignore(L.build_store null_t2 addr_t2 builder);
 
             (* create dict *)
-            let key_is_string = match t1 with A.String -> 1 | _ -> 0 in
+            let t1_assc = assc_typ_of_typlist [t1] in
+            let key_is_string = match t1_assc with A.String -> 1 | _ -> 0 in
             let ht =  L.build_call ht_create_func [|L.const_int i32_t (List.length d);L.const_int i1_t key_is_string|] "tbl" builder in
             let addr_ht = L.build_in_bounds_gep addr [|zero;two|] "dictht" builder in
             ignore(L.build_store ht addr_ht builder);
