@@ -1,0 +1,2 @@
+l = lmap(<int x:int>{ x; }, <int>[]);
+sprint((string)(lsize(l)));

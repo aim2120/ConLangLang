@@ -1,0 +1,2 @@
+x = lfold(<int a, int e:int>{ a; }, 0, <int>[]);
+sprint((string)x);

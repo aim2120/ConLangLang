@@ -1,0 +1,2 @@
+x = dfold(<int a, int k, int v:int>{ a; }, 0, <int,int>{});
+sprint((string)x);

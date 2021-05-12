@@ -312,14 +312,20 @@ let check_ast ast =
                 Fun([t;String],t') when t = t' ->
                     let vsym = add_built_in vsym ("sfold", [Fun([t;String],t);t;String], t) in
                     add_built_in vsym ("lfold", [Fun([t;String],t);t;List(String)], t)
-                | Fun([t;x],t') when t = t' ->
-                    add_built_in vsym ("lfold", [Fun([t;x],t);t;List(x)], t)
+                | Fun([t;x],t') when t = t' -> (
+                    let vsym = add_built_in vsym ("lfold", [Fun([t;x],t);t;List(x)], t) in
+                    if x = t' then (
+                        add_built_in vsym ("dmap", [Fun([x;x],x);Dict(x,x)], Dict(x,x))
+                    ) else vsym
+                )
                 | Fun([t;x;y],t') when t = t' ->
                     add_built_in vsym ("dfold", [Fun([t;x;y],t);t;Dict(x,y)], t)
-                | Fun([t],t') when t = t' ->
+                | Fun([t],t') when t = t' -> (
                         add_built_in vsym ("lmap", [Fun([t],t);List(t)], List(t))
-                | Fun([k;v],v') when v = v' ->
+                )
+                | Fun([k;v],v') when v = v' -> (
                         add_built_in vsym ("dmap", [Fun([k;v],v);Dict(k,v)], Dict(k,v))
+                )
                 | _ -> vsym
             )
             in

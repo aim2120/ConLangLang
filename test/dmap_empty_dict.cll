@@ -1,0 +1,4 @@
+f = <int k, int v:int>{ v; };
+d = dmap(f,<int,int>{});
+size = dsize(d);
+sprint((string)size);

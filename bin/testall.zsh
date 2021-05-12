@@ -71,7 +71,10 @@ output+="THESE TESTS SHOULD FAIL\n"
 output+="***********************************\n"
 output+="\n"
 for t in ./$src_dir/*.cll; do
-    if ! [[ "${t}" == *"fail"* ]]; then
+    filename=${t%.cll}
+    filename=${filename##*/}
+
+    if ! [[ "${filename}" == *"fail"* ]]; then
         continue
     fi
 
@@ -82,9 +85,14 @@ for t in ./$src_dir/*.cll; do
     output+="$(./cll.native $t 2>&1)\n"
     if [ $? -eq 2 ]; then
         echo "${green}[ ✓ ] ${to_stdout}${reset}"
-     else
-         echo "${red}[ X ] !!!${to_stdout} failed to fail!!!${reset}"
-     fi
+    else
+    output+="$(./${build_dir}/${filename} 2>&1)\n"
+        if [ $? -ne 0 ]; then
+            echo "${green}[ ✓ ] ${to_stdout}${reset}"
+        else
+            echo "${red}[ X ] !!!${to_stdout} failed to fail!!!${reset}"
+        fi
+    fi
     output+="***********************************\n"
     output+="\n"
 done
